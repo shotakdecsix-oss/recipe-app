@@ -87,24 +87,34 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 JSON以外は出力しないでください。"""
 
 
-def call_claude(prompt: str, max_tokens: int = 2000) -> list:
+def call_claude(prompt: str, max_tokens: int = 4096) -> list:
     message = anthropic_client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
     if message.stop_reason == "max_tokens":
-        print("[WARN] Claude hit max_tokens limit")
+        print("[WARN] Claude hit max_tokens limit — response truncated")
 
     raw = message.content[0].text.strip()
+
+    # Extract JSON array from response
     if "```json" in raw:
         raw = raw.split("```json")[1].split("```")[0].strip()
     elif "```" in raw:
         raw = raw.split("```")[1].split("```")[0].strip()
+    else:
+        # Try to find bare JSON array
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start != -1 and end != -1:
+            raw = raw[start:end+1]
 
+    print(f"[DEBUG] stop_reason={message.stop_reason}, raw length={len(raw)}")
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON parse failed: {e}")
         print(f"[ERROR] Claude raw output (first 800 chars):\n{raw[:800]}")
         raise
 

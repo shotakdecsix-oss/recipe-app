@@ -49,60 +49,37 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
         if exclude_titles else ""
     )
 
-    return f"""あなたは料理とお酒のプロです。以下の情報をもとに、バラエティ豊かなレシピを3品、日本語で詳しく提案してください。
+    return f"""あなたは料理とお酒のプロです。以下の条件でレシピを3品、日本語のJSONで返してください。
 
-## ユーザー情報
 - 手持ちの食材: {', '.join(ingredients)}
-- 今の気分・食べたいもの: {mood or '特になし'}
+- 気分: {mood or '特になし'}
 - 人数: {servings}人前
-- 調理時間の目安: {max_time or '特になし'}
+- 調理時間: {max_time or '特になし'}
 {drink_line}
 
-## タスク
-手持ち食材を活かして作れるレシピを **3品** 考え、以下のJSON形式で回答してください。
-- ジャンル（和・洋・中・エスニック等）や調理法（炒め・煮込み・揚げ等）をバラけさせる
-- 説明文はすべて日本語で
-- 材料は分量を{servings}人前で記載（例: 「鶏もも肉 300g」「醤油 大さじ2」）
-- 調味料・塩気・旨味のバランスを考慮し、必要な調味料を補完すること
-- 手順は8〜12ステップで、火加減・時間・コツを具体的に書く
-- substitutionsには、ハーブ・スパイス・特殊な調味料（例: バジル、クミン、ナンプラー、豆板醤、タヒニ、オイスターソースなど）は**必ず**代替または省略方法を記載する。ユーザーが持っていない可能性がある食材も同様に記載する
-- suggested_additionsには、追加すると味や見た目がぐっと良くなる食材を2〜3個提案する
+ルール:
+- ジャンル・調理法をバラけさせる
+- 材料は{servings}人前の分量を記載
+- 調味料・塩気のバランスを補完すること
+- 手順は5〜6ステップで簡潔に
+- ハーブ・スパイス・特殊調味料（ナンプラー、豆板醤、クミン等）は必ずsubstitutionsに代替/省略を記載
 - {drink_pairing_note}
 {exclude_note}
 
 ```json
 [
   {{
-    "title_ja": "日本語のレシピ名",
-    "reason": "このレシピを選んだ理由（60字以内）",
-    "ingredients_ja": [
-      "食材1 分量",
-      "食材2 分量",
-      "調味料1 分量"
-    ],
-    "steps_ja": [
-      "【下準備】手順（火加減・時間・コツを含む）",
-      "【調理】手順",
-      "..."
-    ],
-    "tips": ["コツや注意点1", "コツや注意点2"],
-    "suggested_additions": [
-      {{"name_ja": "追加食材名", "reason": "理由（20字以内）"}}
-    ],
+    "title_ja": "レシピ名",
+    "reason": "選んだ理由（40字以内）",
+    "ingredients_ja": ["食材1 分量", "調味料1 分量"],
+    "steps_ja": ["手順1", "手順2", "手順3", "手順4", "手順5"],
+    "suggested_additions": [{{"name_ja": "食材名", "reason": "理由（15字以内）"}}],
     "substitutions": [
-      {{
-        "ingredient_name": "不足食材名（ingredients_jaの分量なし名称）",
-        "alternative": "代替品の説明",
-        "can_omit": true,
-        "omit_note": "省略した場合の影響"
-      }}
+      {{"ingredient_name": "食材名", "alternative": "代替品", "can_omit": true, "omit_note": "省略時の影響"}}
     ],
-    "pairing": {{
-      "drink": "お酒の名前",
-      "reason": "ペアリングの理由（40字以内）"
-    }},
-    "cook_time_min": 30,
-    "difficulty": "簡単 / 普通 / 難しい"
+    "pairing": {{"drink": "お酒名", "reason": "理由（30字以内）"}},
+    "cook_time_min": 20,
+    "difficulty": "簡単"
   }}
 ]
 ```
@@ -110,7 +87,7 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 JSON以外は出力しないでください。"""
 
 
-def call_claude(prompt: str, max_tokens: int = 4096) -> list:
+def call_claude(prompt: str, max_tokens: int = 2000) -> list:
     message = anthropic_client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
@@ -203,12 +180,18 @@ def suggest():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
 
-    prompt = build_prompt(ingredients, mood, servings, max_time, drink, [])
-    return Response(
-        stream_with_context(stream_recipe_response(prompt)),
-        mimetype="text/event-stream",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
-    )
+    try:
+        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, [])
+        recipes = call_claude(prompt)
+        return jsonify({
+            "recipes": recipes,
+            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
+            "candidate_count": len(recipes),
+        })
+    except json.JSONDecodeError:
+        return jsonify({"error": "AIの応答を解析できませんでした。もう一度お試しください"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/recipe/next", methods=["POST"])
@@ -224,12 +207,16 @@ def retry():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
 
-    prompt = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
-    return Response(
-        stream_with_context(stream_recipe_response(prompt)),
-        mimetype="text/event-stream",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
-    )
+    try:
+        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
+        recipes = call_claude(prompt)
+        return jsonify({
+            "recipes": recipes,
+            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
+            "candidate_count": len(recipes),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/rewrite", methods=["POST"])

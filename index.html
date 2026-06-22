@@ -684,6 +684,31 @@
     document.getElementById('error-box').style.display = 'none';
   }
 
+  function fetchRecipes(url, body, onSuccess) {
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    })
+    .then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error('サーバーエラー (' + r.status + ')'); });
+      return r.json();
+    })
+    .then(function(data) {
+      setLoading(false);
+      if (data.error) { showError(data.error); return; }
+      onSuccess(data);
+    })
+    .catch(function(e) {
+      setLoading(false);
+      console.error('[RecipeApp] error:', e);
+      var msg = (e instanceof SyntaxError || (e.message && e.message.indexOf('did not match') >= 0))
+        ? '生成に時間がかかりすぎました。もう一度お試しください。'
+        : ('通信エラー: ' + e.message);
+      showError(msg);
+    });
+  }
+
   function suggest() {
     if (tags.length === 0) { showError('食材を1つ以上入力してください'); return; }
     hideError();
@@ -696,7 +721,7 @@
     setLoading(true);
     document.getElementById('results').innerHTML = '';
 
-    readRecipeStream('/api/recipe', {
+    fetchRecipes('/api/recipe', {
       ingredients: lastIngredients, mood: lastMood,
       servings: lastServings, max_time: lastMaxTime, drink: lastDrink
     }, function(data) {
@@ -709,7 +734,7 @@
     hideError();
     setLoading(true);
 
-    readRecipeStream('/api/recipe/next', {
+    fetchRecipes('/api/recipe/next', {
       ingredients: lastIngredients, mood: lastMood,
       servings: lastServings, max_time: lastMaxTime,
       drink: lastDrink, exclude_titles: shownTitles

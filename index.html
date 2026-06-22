@@ -691,13 +691,12 @@
       body: JSON.stringify(body)
     })
     .then(function(r) {
-      if (!r.ok) return r.text().then(function(t) { throw new Error('サーバーエラー (' + r.status + ')'); });
-      return r.json();
-    })
-    .then(function(data) {
-      setLoading(false);
-      if (data.error) { showError(data.error); return; }
-      onSuccess(data);
+      return r.json().then(function(data) {
+        if (data.error) { setLoading(false); showError(data.error); return; }
+        if (!r.ok) { setLoading(false); showError('サーバーエラー (' + r.status + ')'); return; }
+        setLoading(false);
+        onSuccess(data);
+      });
     })
     .catch(function(e) {
       setLoading(false);

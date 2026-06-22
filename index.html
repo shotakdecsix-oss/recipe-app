@@ -499,6 +499,7 @@
   </div>
 
   <button class="btn-suggest" id="btn-suggest" onclick="suggest()">✨ レシピを提案する</button>
+  <button onclick="testPost()" style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px;font-size:.78rem;cursor:pointer">🔧 POST通信テスト</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -526,6 +527,18 @@
 <div id="results"></div>
 
 <script>
+  // ---- POST test ----
+  function testPost() {
+    fetch('/api/ping', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({test: true})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ alert('POST OK: ' + JSON.stringify(d)); })
+    .catch(function(e){ alert('POST失敗: ' + e.message + '\n' + e); });
+  }
+
   // ---- Deploy info ----
   fetch('/api/version').then(function(r){ return r.json(); }).then(function(d){
     document.getElementById('deploy-info').textContent = 'deployed: ' + d.deployed_at;
@@ -657,6 +670,7 @@
     })
     .catch(function(e) {
       setLoading(false);
+      console.error('[RecipeApp] fetch error:', e);
       showError('通信エラーが発生しました: ' + e.message);
     });
   }
@@ -687,6 +701,7 @@
     })
     .catch(function(e) {
       setLoading(false);
+      console.error('[RecipeApp] fetch error:', e);
       showError('通信エラーが発生しました: ' + e.message);
     });
   }

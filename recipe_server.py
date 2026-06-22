@@ -143,6 +143,11 @@ def version():
     return jsonify({"deployed_at": SERVER_START})
 
 
+@app.route("/api/ping", methods=["GET", "POST", "OPTIONS"])
+def ping():
+    return jsonify({"ok": True, "method": request.method})
+
+
 @app.route("/api/suggest", methods=["POST"])
 def suggest():
     body = request.get_json(force=True)

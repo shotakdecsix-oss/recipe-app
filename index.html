@@ -454,6 +454,7 @@
   <h1>🍳 冷蔵庫レシピ</h1>
   <p>食材と気分を入れるだけで、レシピとお酒のペアリングを提案します</p>
   <p id="deploy-info" style="font-size:.65rem;color:var(--border);margin-top:6px"></p>
+  <button onclick="resetAll()" style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 14px;font-size:.78rem;cursor:pointer">🗑 リセット</button>
 </div>
 
 <!-- Form -->
@@ -875,6 +876,24 @@
   }
 
   // ---- State persistence ----
+  function resetAll() {
+    try { localStorage.removeItem('recipe_state'); } catch(e) {}
+    tags = []; lastIngredients = []; lastMood = ''; lastServings = 2;
+    lastMaxTime = ''; lastDrink = ''; shownTitles = [];
+    recipeData = []; chatHistories = {}; selectedSubs = {}; recipeSubsMap = [];
+    document.getElementById('mood').value = '';
+    document.getElementById('servings').value = '2';
+    document.getElementById('max-time').value = '';
+    document.getElementById('drink').value = '';
+    document.getElementById('results').innerHTML = '';
+    hideError();
+    // Clear tag chips
+    var wrap = document.getElementById('tag-wrap');
+    var input = document.getElementById('ingredient-input');
+    Array.from(wrap.querySelectorAll('.tag')).forEach(function(el){ el.remove(); });
+    input.value = '';
+  }
+
   function saveState() {
     try {
       localStorage.setItem('recipe_state', JSON.stringify({

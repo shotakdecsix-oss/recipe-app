@@ -591,6 +591,9 @@
     document.getElementById('deploy-info').textContent = 'deployed: ' + d.deployed_at;
   });
 
+  // ---- Restore previous session ----
+  restoreState();
+
   // ---- Tag input ----
   var tags = [];
 
@@ -868,6 +871,60 @@
     }).join('');
 
     el.innerHTML = meta + cards;
+    saveState();
+  }
+
+  // ---- State persistence ----
+  function saveState() {
+    try {
+      localStorage.setItem('recipe_state', JSON.stringify({
+        recipes: recipeData,
+        generated_at: lastGenAt,
+        candidate_count: lastCandCount,
+        tags: tags,
+        mood: lastMood,
+        servings: lastServings,
+        max_time: lastMaxTime,
+        drink: lastDrink,
+        shownTitles: shownTitles,
+      }));
+    } catch(e) {}
+  }
+
+  function restoreState() {
+    try {
+      var raw = localStorage.getItem('recipe_state');
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (!s.recipes || !s.recipes.length) return;
+
+      // Restore form
+      lastIngredients = s.tags || [];
+      tags = lastIngredients.slice();
+      lastMood = s.mood || '';
+      lastServings = s.servings || 2;
+      lastMaxTime = s.max_time || '';
+      lastDrink = s.drink || '';
+      shownTitles = s.shownTitles || [];
+
+      document.getElementById('mood').value = lastMood;
+      document.getElementById('servings').value = lastServings;
+      document.getElementById('max-time').value = lastMaxTime;
+      document.getElementById('drink').value = lastDrink;
+
+      // Restore tag chips
+      var wrap = document.getElementById('tag-wrap');
+      var input = document.getElementById('ingredient-input');
+      tags.forEach(function(t) {
+        var el = document.createElement('span');
+        el.className = 'tag';
+        el.innerHTML = t + '<span class="tag-del" onclick="removeTag(\'' + t.replace(/'/g,"\\'") + '\')">✕</span>';
+        wrap.insertBefore(el, input);
+      });
+
+      // Restore recipes
+      renderResults({ recipes: s.recipes, generated_at: s.generated_at, candidate_count: s.candidate_count, _fresh: false });
+    } catch(e) {}
   }
 
   // ---- Substitution modal ----

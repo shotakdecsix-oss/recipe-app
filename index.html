@@ -646,7 +646,7 @@
     .then(function(data) {
       setLoading(false);
       if (data.error) { showError(data.error); return; }
-      shownTitles = data.recipes.map(function(r){ return r.title_en; });
+      shownTitles = data.recipes.map(function(r){ return r.title_ja; });
       renderResults(data);
     })
     .catch(function(e) {
@@ -669,13 +669,14 @@
         max_time: lastMaxTime,
         drink: lastDrink,
         exclude_titles: shownTitles,
+
       })
     })
     .then(function(r){ return r.json(); })
     .then(function(data) {
       setLoading(false);
       if (data.error) { showError(data.error); return; }
-      shownTitles = shownTitles.concat(data.recipes.map(function(r){ return r.title_en; }));
+      shownTitles = shownTitles.concat(data.recipes.map(function(r){ return r.title_ja; }));
       renderResults(data);
     })
     .catch(function(e) {
@@ -739,8 +740,7 @@
       return '<div class="recipe-card">'
         + '<div class="recipe-header">'
         + '<div class="recipe-num">レシピ ' + (i+1) + '</div>'
-        + '<div class="recipe-title">' + esc(r.title_ja || r.title_en) + '</div>'
-        + '<div class="recipe-title-en">' + esc(r.title_en) + '</div>'
+        + '<div class="recipe-title">' + esc(r.title_ja) + '</div>'
         + '<div class="recipe-badges">'
         + (r.cook_time_min ? '<span class="badge badge-time">⏱ ' + r.cook_time_min + '分</span>' : '')
         + (r.difficulty ? '<span class="badge ' + diffClass(r.difficulty) + '">' + esc(r.difficulty) + '</span>' : '')
@@ -779,10 +779,6 @@
         + '<div id="rewrite-bar-' + i + '" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'
         + '<button onclick="applyRewrite(' + i + ')" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.9rem;font-weight:700;cursor:pointer">✨ この変更でレシピを更新</button>'
         + '</div>'
-        + (r.source_url ? '<div style="margin-top:14px;text-align:right">'
-          + '<a href="' + r.source_url + '" target="_blank" rel="noopener" '
-          + 'style="font-size:.78rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);padding-bottom:1px">'
-          + '元レシピを見る →</a></div>' : '')
         + '</div>'
         + '<div class="chat-section">'
         + '<button class="chat-toggle" onclick="toggleChat(' + i + ')">💬 このレシピについて質問する</button>'

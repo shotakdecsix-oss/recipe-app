@@ -28,6 +28,8 @@ PORT          = int(os.environ.get("PORT", CFG.get("port", 5050)))
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 app = Flask(__name__, static_folder=BASE_DIR)
 
+SERVER_START = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 # ---------------------------------------------------------------------------
 # Claude helpers
 # ---------------------------------------------------------------------------
@@ -134,6 +136,11 @@ def call_claude(prompt: str, max_tokens: int = 8192) -> list:
 @app.route("/")
 def index():
     return send_from_directory(BASE_DIR, "index.html")
+
+
+@app.route("/api/version")
+def version():
+    return jsonify({"deployed_at": SERVER_START})
 
 
 @app.route("/api/suggest", methods=["POST"])

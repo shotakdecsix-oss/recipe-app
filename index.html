@@ -453,6 +453,7 @@
 <div class="header">
   <h1>🍳 冷蔵庫レシピ</h1>
   <p>食材と気分を入れるだけで、レシピとお酒のペアリングを提案します</p>
+  <p id="deploy-info" style="font-size:.65rem;color:var(--border);margin-top:6px"></p>
 </div>
 
 <!-- Form -->
@@ -525,6 +526,11 @@
 <div id="results"></div>
 
 <script>
+  // ---- Deploy info ----
+  fetch('/api/version').then(function(r){ return r.json(); }).then(function(d){
+    document.getElementById('deploy-info').textContent = 'deployed: ' + d.deployed_at;
+  });
+
   // ---- Tag input ----
   var tags = [];
 

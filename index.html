@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍳 冷蔵庫レシピ</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card2: #22263a;
+    --border: #2e3350;
+    --accent: #6c8aff;
+    --accent2: #ff7f50;
+    --green: #4caf82;
+    --red: #e05c5c;
+    --gold: #f5c842;
+    --text: #e8eaf6;
+    --muted: #8891b0;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  /* ---- Header ---- */
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -.5px; }
+  .header p  { color: var(--muted); margin-top: 6px; font-size: .88rem; }
+
+  /* ---- Form card ---- */
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 640px;
+    margin: 0 auto 28px;
+  }
+  .form-label {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .form-group { margin-bottom: 18px; }
+
+  /* Tag input */
+  .tag-input-wrap {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    cursor: text;
+    min-height: 48px;
+    align-items: center;
+  }
+  .tag-input-wrap:focus-within { border-color: var(--accent); }
+  .tag {
+    background: var(--accent);
+    color: #fff;
+    font-size: .78rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .tag-del { cursor: pointer; opacity: .7; font-size: .85rem; line-height:1; }
+  .tag-del:hover { opacity: 1; }
+  #ingredient-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: .9rem;
+    flex: 1;
+    min-width: 120px;
+  }
+  .tag-hint { font-size: .72rem; color: var(--muted); margin-top: 5px; }
+
+  input[type=text], input[type=number], select, textarea {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: .9rem;
+    padding: 10px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+  select option { background: var(--card2); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* Submit button */
+  .btn-suggest {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    margin-top: 4px;
+  }
+  .btn-suggest:hover  { opacity: .88; }
+  .btn-suggest:active { transform: scale(.98); }
+  .btn-suggest:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---- Loading ---- */
+  .loading {
+    text-align: center;
+    padding: 40px;
+    display: none;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { color: var(--muted); font-size: .88rem; }
+
+  /* ---- Error ---- */
+  .error-box {
+    background: rgba(224,92,92,.12);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    max-width: 640px;
+    margin: 0 auto 20px;
+    color: var(--red);
+    font-size: .88rem;
+    display: none;
+  }
+
+  /* ---- Results ---- */
+  #results { max-width: 640px; margin: 0 auto; }
+  .results-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    font-size: .78rem;
+    color: var(--muted);
+  }
+  .btn-retry {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: .8rem;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .btn-retry:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-retry:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Recipe card */
+  .recipe-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .recipe-header {
+    background: var(--card2);
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .recipe-num {
+    font-size: .68rem;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .recipe-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+  .recipe-title-en { font-size: .78rem; color: var(--muted); margin-bottom: 8px; }
+  .recipe-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .badge {
+    font-size: .7rem;
+    padding: 2px 9px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-time  { background: rgba(108,138,255,.15); color: var(--accent); }
+  .badge-diff  { background: rgba(76,175,130,.15);  color: var(--green); }
+  .badge-diff.hard { background: rgba(224,92,92,.15); color: var(--red); }
+
+  .recipe-body { padding: 16px 18px; }
+  .section-title {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin: 14px 0 8px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  .reason-box {
+    background: rgba(108,138,255,.08);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: .85rem;
+    color: var(--text);
+  }
+
+  .ingredients-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ing-chip {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: .78rem;
+    padding: 3px 10px;
+    color: var(--text);
+  }
+
+  .steps-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .steps-list li {
+    display: flex;
+    gap: 10px;
+    font-size: .87rem;
+    line-height: 1.55;
+  }
+  .step-num {
+    background: var(--accent);
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .pairing-box {
+    background: rgba(245,200,66,.07);
+    border: 1px solid rgba(245,200,66,.25);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .pairing-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .pairing-drink { font-size: .9rem; font-weight: 700; color: var(--gold); margin-bottom: 2px; }
+  .pairing-reason { font-size: .8rem; color: var(--muted); }
+
+  /* ---- Substitution modal ---- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.65);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-sheet {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 20px 20px 32px;
+    width: 100%;
+    max-width: 640px;
+    animation: slideUp .2s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity:0 } to { transform: translateY(0); opacity:1 } }
+  .modal-title { font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
+  .modal-ing   { font-size: 1rem; font-weight: 800; margin-bottom: 16px; }
+  .modal-opts  { display: flex; flex-direction: column; gap: 8px; }
+  .modal-opt {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: border-color .15s;
+  }
+  .modal-opt:hover { border-color: var(--accent); }
+  .modal-opt.selected { border-color: var(--accent); background: rgba(108,138,255,.1); }
+  .modal-opt-label { font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .modal-opt-text  { font-size: .88rem; color: var(--text); }
+  .modal-opt-note  { font-size: .75rem; color: var(--muted); margin-top: 3px; }
+  .modal-close { margin-top: 14px; width: 100%; background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 10px; cursor: pointer; font-size: .85rem; }
+
+  /* ---- Toast ---- */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    background: var(--card2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: .82rem;
+    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: 24px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s, transform .2s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ---- Chat ---- */
+  .chat-section {
+    border-top: 1px solid var(--border);
+    padding: 14px 18px 16px;
+    background: var(--bg);
+  }
+  .chat-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .78rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: border-color .15s, color .15s;
+  }
+  .chat-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-body { display: none; margin-top: 12px; }
+  .chat-body.open { display: block; }
+  .chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 2px;
+  }
+  .msg {
+    font-size: .84rem;
+    line-height: 1.55;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 88%;
+  }
+  .msg-user {
+    background: var(--accent);
+    color: #fff;
+    align-self: flex-end;
+    border-radius: 8px 8px 2px 8px;
+  }
+  .msg-ai {
+    background: var(--card2);
+    color: var(--text);
+    align-self: flex-start;
+    border-radius: 8px 8px 8px 2px;
+    border: 1px solid var(--border);
+  }
+  .msg-thinking {
+    background: var(--card2);
+    color: var(--muted);
+    align-self: flex-start;
+    border-radius: 8px 8px 8px 2px;
+    font-size: .78rem;
+    font-style: italic;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+  }
+  .chat-input {
+    flex: 1;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: .85rem;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-send {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-size: .85rem;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity .15s;
+  }
+  .chat-send:hover { opacity: .85; }
+  .chat-send:disabled { opacity: .4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🍳 冷蔵庫レシピ</h1>
+  <p>食材と気分を入れるだけで、レシピとお酒のペアリングを提案します</p>
+</div>
+
+<!-- Form -->
+<div class="form-card">
+  <div class="form-group">
+    <label class="form-label">冷蔵庫の食材</label>
+    <div class="tag-input-wrap" id="tag-wrap">
+      <input type="text" id="ingredient-input" placeholder="例: 鶏肉、にんじん…（Enterで追加）">
+    </div>
+    <p class="tag-hint">Enterキー または カンマで追加。クリックで削除。</p>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="mood">今の気分・食べたいもの</label>
+    <input type="text" id="mood" placeholder="例: さっぱりしたい、がっつり食べたい、エスニック系">
+  </div>
+
+  <div class="row2">
+    <div class="form-group">
+      <label class="form-label" for="servings">人数</label>
+      <select id="servings">
+        <option value="1">1人前</option>
+        <option value="2" selected>2人前</option>
+        <option value="3">3人前</option>
+        <option value="4">4人前</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="max-time">調理時間の目安</label>
+      <select id="max-time">
+        <option value="">特になし</option>
+        <option value="15分以内">15分以内</option>
+        <option value="30分以内">30分以内</option>
+        <option value="1時間以内">1時間以内</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="drink">手元にあるお酒（省略可）</label>
+    <input type="text" id="drink" placeholder="例: カベルネ・ソーヴィニヨン、サッポロ黒ラベル、獺祭">
+    <p class="tag-hint">入力するとそのお酒に合う料理を優先して提案します</p>
+  </div>
+
+  <button class="btn-suggest" id="btn-suggest" onclick="suggest()">✨ レシピを提案する</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Substitution modal -->
+<div class="modal-overlay" id="sub-modal" onclick="closeModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-title">食材の変更</div>
+    <div class="modal-ing" id="modal-ing-name"></div>
+    <div class="modal-opts" id="modal-opts"></div>
+    <button class="modal-close" onclick="closeSubModal()">閉じる</button>
+  </div>
+</div>
+
+<!-- Error -->
+<div class="error-box" id="error-box"></div>
+
+<!-- Loading -->
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <p id="loading-msg">Spoonacularでレシピを検索中…</p>
+</div>
+
+<!-- Results -->
+<div id="results"></div>
+
+<script>
+  // ---- Tag input ----
+  var tags = [];
+
+  document.getElementById('ingredient-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(this.value.replace(/,/g,'').trim());
+      this.value = '';
+    }
+  });
+
+  document.getElementById('ingredient-input').addEventListener('blur', function() {
+    var v = this.value.replace(/,/g,'').trim();
+    if (v) { addTag(v); this.value = ''; }
+  });
+
+  document.getElementById('tag-wrap').addEventListener('click', function(e) {
+    if (e.target === this || e.target.id === 'ingredient-input') {
+      document.getElementById('ingredient-input').focus();
+    }
+  });
+
+  function addTag(val) {
+    if (!val || tags.includes(val)) return;
+    tags.push(val);
+    renderTags();
+  }
+
+  function removeTag(val) {
+    tags = tags.filter(function(t){ return t !== val; });
+    renderTags();
+  }
+
+  function renderTags() {
+    var wrap = document.getElementById('tag-wrap');
+    var input = document.getElementById('ingredient-input');
+    // Remove old tags
+    wrap.querySelectorAll('.tag').forEach(function(el){ el.remove(); });
+    tags.forEach(function(t) {
+      var el = document.createElement('div');
+      el.className = 'tag';
+      el.innerHTML = t + '<span class="tag-del" onclick="removeTag(\'' + t.replace(/'/g,"\\'") + '\')">✕</span>';
+      wrap.insertBefore(el, input);
+    });
+  }
+
+  // ---- API calls ----
+  var lastIngredients = [];
+  var lastMood = '';
+  var lastServings = 2;
+  var lastMaxTime = '';
+  var lastDrink = '';
+  var shownTitles = [];
+
+  var loadingMsgs = [
+    'Spoonacularでレシピを検索中…',
+    'Claudeがレシピを選んでいます…',
+    'お酒のペアリングを考え中…',
+  ];
+  var msgIdx = 0;
+  var msgTimer = null;
+
+  function startLoadingMsgs() {
+    msgIdx = 0;
+    document.getElementById('loading-msg').textContent = loadingMsgs[0];
+    msgTimer = setInterval(function() {
+      msgIdx = (msgIdx + 1) % loadingMsgs.length;
+      document.getElementById('loading-msg').textContent = loadingMsgs[msgIdx];
+    }, 2200);
+  }
+
+  function stopLoadingMsgs() {
+    clearInterval(msgTimer);
+  }
+
+  function setLoading(on) {
+    document.getElementById('loading').style.display = on ? 'block' : 'none';
+    document.getElementById('btn-suggest').disabled = on;
+    var retryBtn = document.getElementById('btn-retry');
+    if (retryBtn) retryBtn.disabled = on;
+    if (on) startLoadingMsgs(); else stopLoadingMsgs();
+  }
+
+  function showError(msg) {
+    var el = document.getElementById('error-box');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+  }
+
+  function hideError() {
+    document.getElementById('error-box').style.display = 'none';
+  }
+
+  function suggest() {
+    if (tags.length === 0) { showError('食材を1つ以上入力してください'); return; }
+    hideError();
+    lastIngredients = tags.slice();
+    lastMood = document.getElementById('mood').value.trim();
+    lastServings = parseInt(document.getElementById('servings').value);
+    lastMaxTime = document.getElementById('max-time').value;
+    lastDrink = document.getElementById('drink').value.trim();
+    shownTitles = [];
+
+    setLoading(true);
+    document.getElementById('results').innerHTML = '';
+
+    fetch('/api/suggest', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        ingredients: lastIngredients,
+        mood: lastMood,
+        servings: lastServings,
+        max_time: lastMaxTime,
+        drink: lastDrink,
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      setLoading(false);
+      if (data.error) { showError(data.error); return; }
+      shownTitles = data.recipes.map(function(r){ return r.title_en; });
+      renderResults(data);
+    })
+    .catch(function(e) {
+      setLoading(false);
+      showError('通信エラーが発生しました: ' + e.message);
+    });
+  }
+
+  function retry() {
+    hideError();
+    setLoading(true);
+
+    fetch('/api/retry', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        ingredients: lastIngredients,
+        mood: lastMood,
+        servings: lastServings,
+        max_time: lastMaxTime,
+        drink: lastDrink,
+        exclude_titles: shownTitles,
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      setLoading(false);
+      if (data.error) { showError(data.error); return; }
+      shownTitles = shownTitles.concat(data.recipes.map(function(r){ return r.title_en; }));
+      renderResults(data);
+    })
+    .catch(function(e) {
+      setLoading(false);
+      showError('通信エラーが発生しました: ' + e.message);
+    });
+  }
+
+  // ---- Render ----
+  var recipeSubsMap = [];  // built subs dict per recipe index
+
+  function renderResults(data) {
+    if (data.recipes) recipeData = data.recipes;
+    if (data.generated_at) lastGenAt = data.generated_at;
+    if (data.candidate_count) lastCandCount = data.candidate_count;
+    // Only reset chat/subs on fresh results
+    if (data._fresh !== false) { chatHistories = {}; selectedSubs = {}; recipeSubsMap = []; }
+    var el = document.getElementById('results');
+
+    var diffClass = function(d) {
+      return d === '難しい' ? 'badge-diff hard' : 'badge-diff';
+    };
+
+    var meta = '<div class="results-meta">'
+      + '<span>' + data.candidate_count + '件のレシピから選出 · ' + data.generated_at + '</span>'
+      + '<button class="btn-retry" id="btn-retry" onclick="retry()">🔄 別の提案を見る</button>'
+      + '</div>';
+
+    var cards = data.recipes.map(function(r, i) {
+      var steps = (r.steps_ja || []).map(function(s, si) {
+        return '<li><span class="step-num">' + (si+1) + '</span><span>' + esc(s) + '</span></li>';
+      }).join('');
+
+      // Build lookup dict from substitutions array: {ingredient_name: sub_obj}
+      var subsArr = r.substitutions || [];
+      var subs = {};
+      subsArr.forEach(function(s){ if (s.ingredient_name) subs[s.ingredient_name] = s; });
+      recipeSubsMap[i] = subs;
+
+    var ings = (r.ingredients_ja || []).map(function(ing) {
+        // Find matching substitution key (partial match on ingredient name)
+        var subKey = Object.keys(subs).find(function(k){ return ing.indexOf(k) !== -1; });
+        var sub = subKey ? subs[subKey] : null;
+        var selSub = selectedSubs[i] && selectedSubs[i][subKey];
+        if (sub) {
+          var chipStyle = selSub
+            ? 'background:rgba(108,138,255,.18);border:1px solid var(--accent);color:var(--accent)'
+            : 'background:rgba(224,92,92,.1);border:1px dashed var(--red);color:var(--text)';
+          var label = selSub === '省略'
+            ? '<span style="text-decoration:line-through;color:var(--muted)">' + esc(ing) + '</span> <span style="color:var(--red);font-size:.7rem">省略</span>'
+            : selSub
+              ? '<span style="text-decoration:line-through;color:var(--muted);font-size:.72rem">' + esc(ing) + '</span><span style="font-size:.75rem"> → ' + esc(selSub) + '</span>'
+              : esc(ing) + ' <span style="font-size:.65rem;color:var(--red)">▼変更</span>';
+          return '<button onclick="openSubModal(' + i + ',\'' + esc(subKey).replace(/'/g,"\\'") + '\')" '
+            + 'style="' + chipStyle + ';font-size:.78rem;padding:3px 10px;border-radius:20px;cursor:pointer;text-align:left">'
+            + label + '</button>';
+        }
+        return '<span class="ing-chip">' + esc(ing) + '</span>';
+      }).join('');
+
+      return '<div class="recipe-card">'
+        + '<div class="recipe-header">'
+        + '<div class="recipe-num">レシピ ' + (i+1) + '</div>'
+        + '<div class="recipe-title">' + esc(r.title_ja || r.title_en) + '</div>'
+        + '<div class="recipe-title-en">' + esc(r.title_en) + '</div>'
+        + '<div class="recipe-badges">'
+        + (r.cook_time_min ? '<span class="badge badge-time">⏱ ' + r.cook_time_min + '分</span>' : '')
+        + (r.difficulty ? '<span class="badge ' + diffClass(r.difficulty) + '">' + esc(r.difficulty) + '</span>' : '')
+        + '</div>'
+        + '</div>'
+        + '<div class="recipe-body">'
+        + (r.reason ? '<div class="section-title">選んだ理由</div><div class="reason-box">' + esc(r.reason) + '</div>' : '')
+        + (ings ? '<div class="section-title">材料</div><div class="ingredients-grid">' + ings + '</div>' : '')
+        + (steps ? '<div class="section-title">作り方</div><ul class="steps-list">' + steps + '</ul>' : '')
+        /* substitutions displayed inline per ingredient - see ingredients section */
+        + (r.suggested_additions && r.suggested_additions.length
+          ? '<div class="section-title">追加するともっと美味しくなる食材</div>'
+          + '<div style="display:flex;flex-wrap:wrap;gap:8px">'
+          + r.suggested_additions.map(function(a) {
+              return '<button onclick="toggleAddition(' + i + ',\'' + esc(a.name_ja).replace(/'/g,"\\'") + '\',this)" '
+                + 'title="' + esc(a.reason) + '" '
+                + 'style="background:var(--card2);border:1px dashed var(--accent);color:var(--accent);'
+                + 'font-size:.78rem;padding:4px 12px;border-radius:20px;cursor:pointer;text-align:left;transition:background .15s" '
+                + 'onmouseover="this.style.background=\'rgba(108,138,255,.15)\'" '
+                + 'onmouseout="this.style.background=\'var(--card2)\'">'
+                + '＋ ' + esc(a.name_ja)
+                + '<span style="display:block;font-size:.65rem;color:var(--muted);margin-top:1px">' + esc(a.reason) + '</span>'
+                + '</button>';
+            }).join('')
+          + '</div>' : '')
+        + (r.tips && r.tips.length ? '<div class="section-title">コツ・ポイント</div>'
+          + '<ul style="list-style:none;display:flex;flex-direction:column;gap:6px">'
+          + r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
+          + '</ul>' : '')
+        + (r.pairing ? '<div class="section-title">お酒のペアリング</div>'
+          + '<div class="pairing-box">'
+          + '<div class="pairing-icon">🍷</div>'
+          + '<div><div class="pairing-drink">' + esc(r.pairing.drink) + '</div>'
+          + '<div class="pairing-reason">' + esc(r.pairing.reason) + '</div></div>'
+          + '</div>' : '')
+        + '<div id="rewrite-bar-' + i + '" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'
+        + '<button onclick="applyRewrite(' + i + ')" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.9rem;font-weight:700;cursor:pointer">✨ この変更でレシピを更新</button>'
+        + '</div>'
+        + (r.source_url ? '<div style="margin-top:14px;text-align:right">'
+          + '<a href="' + r.source_url + '" target="_blank" rel="noopener" '
+          + 'style="font-size:.78rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);padding-bottom:1px">'
+          + '元レシピを見る →</a></div>' : '')
+        + '</div>'
+        + '<div class="chat-section">'
+        + '<button class="chat-toggle" onclick="toggleChat(' + i + ')">💬 このレシピについて質問する</button>'
+        + '<div class="chat-body" id="chat-body-' + i + '">'
+        + '<div class="chat-messages" id="chat-msgs-' + i + '"></div>'
+        + '<div class="chat-input-row">'
+        + '<input class="chat-input" id="chat-input-' + i + '" type="text" placeholder="例: 代替食材は？ アレンジは？" '
+        + 'onkeydown="if(event.key===\'Enter\')sendChat(' + i + ')">'
+        + '<button class="chat-send" id="chat-send-' + i + '" onclick="sendChat(' + i + ')">送信</button>'
+        + '</div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    el.innerHTML = meta + cards;
+  }
+
+  // ---- Substitution modal ----
+  var selectedSubs = {};   // {recipeIdx: {ingredientKey: "alternative text" | "省略"}}
+  var modalState = {};     // {recipeIdx, ingKey, sub}
+
+  function openSubModal(recipeIdx, ingKey) {
+    var subs = recipeSubsMap[recipeIdx] || {};
+    var sub = subs[ingKey];
+    if (!sub) return;
+    modalState = {recipeIdx: recipeIdx, ingKey: ingKey, sub: sub};
+
+    document.getElementById('modal-ing-name').textContent = ingKey;
+    var current = (selectedSubs[recipeIdx] || {})[ingKey];
+
+    var opts = '';
+    // Original option
+    opts += '<button class="modal-opt' + (!current ? ' selected' : '') + '" onclick="selectSub(null)">'
+      + '<div class="modal-opt-label">そのまま使う</div>'
+      + '<div class="modal-opt-text">変更なし</div>'
+      + '</button>';
+    // Alternative option
+    if (sub.alternative) {
+      opts += '<button class="modal-opt' + (current && current !== '省略' ? ' selected' : '') + '" onclick="selectSub(\'' + sub.alternative.replace(/'/g,"\\'") + '\')">'
+        + '<div class="modal-opt-label">🔄 代替する</div>'
+        + '<div class="modal-opt-text">' + esc(sub.alternative) + '</div>'
+        + '</button>';
+    }
+    // Omit option
+    if (sub.can_omit) {
+      opts += '<button class="modal-opt' + (current === '省略' ? ' selected' : '') + '" onclick="selectSub(\'省略\')">'
+        + '<div class="modal-opt-label">❌ 省略する</div>'
+        + '<div class="modal-opt-text">このレシピから除外</div>'
+        + (sub.omit_note ? '<div class="modal-opt-note">💡 ' + esc(sub.omit_note) + '</div>' : '')
+        + '</button>';
+    }
+    document.getElementById('modal-opts').innerHTML = opts;
+    document.getElementById('sub-modal').classList.add('open');
+  }
+
+  function selectSub(val) {
+    var idx = modalState.recipeIdx;
+    var key = modalState.ingKey;
+    if (!selectedSubs[idx]) selectedSubs[idx] = {};
+    if (val === null) {
+      delete selectedSubs[idx][key];
+    } else {
+      selectedSubs[idx][key] = val;
+    }
+    closeSubModal();
+    // Re-render results to reflect selection (keep chat/subs state)
+    renderResults({recipes: recipeData, generated_at: lastGenAt, candidate_count: lastCandCount, _fresh: false});
+    // Show/hide rewrite bar
+    var bar = document.getElementById('rewrite-bar-' + idx);
+    if (bar) {
+      var hasSubs = selectedSubs[idx] && Object.keys(selectedSubs[idx]).length > 0;
+      var hasAdds = selectedAdditions[idx] && selectedAdditions[idx].length > 0;
+      bar.style.display = (hasSubs || hasAdds) ? 'block' : 'none';
+    }
+  }
+
+  function closeSubModal() {
+    document.getElementById('sub-modal').classList.remove('open');
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById('sub-modal')) closeSubModal();
+  }
+
+  var lastGenAt = '';
+  var lastCandCount = 0;
+
+  function applyRewrite(idx) {
+    var recipe = recipeData[idx];
+    var subs = selectedSubs[idx] || {};
+    var adds = selectedAdditions[idx] || [];
+    if (!Object.keys(subs).length && !adds.length) return;
+
+    var btn = document.querySelector('#rewrite-bar-' + idx + ' button');
+    if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+
+    fetch('/api/rewrite', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        recipe: recipe,
+        selected_subs: subs,
+        additions: adds,
+        servings: lastServings,
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (data.error) { alert('エラー: ' + data.error); return; }
+      var u = data.updated;
+      if (u.ingredients_ja) recipeData[idx].ingredients_ja = u.ingredients_ja;
+      if (u.steps_ja)       recipeData[idx].steps_ja       = u.steps_ja;
+      if (u.tips)           recipeData[idx].tips           = u.tips;
+      // Clear subs and re-render
+      selectedSubs[idx] = {};
+      selectedAdditions[idx] = [];
+      renderResults({recipes: recipeData, generated_at: lastGenAt, candidate_count: lastCandCount, _fresh: false});
+    })
+    .catch(function(e) { alert('通信エラー: ' + e.message); })
+    .finally(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '✨ この変更でレシピを更新'; }
+    });
+  }
+
+  // ---- Toast ----
+  var toastTimer = null;
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2000);
+  }
+
+  // ---- Suggested ingredient (per-recipe addition) ----
+  var selectedAdditions = {};  // {recipeIdx: [name, ...]}
+
+  function toggleAddition(idx, name, btnEl) {
+    if (!selectedAdditions[idx]) selectedAdditions[idx] = [];
+    var arr = selectedAdditions[idx];
+    var pos = arr.indexOf(name);
+    if (pos === -1) {
+      arr.push(name);
+      if (btnEl) {
+        btnEl.style.borderColor = 'var(--green)';
+        btnEl.style.color = 'var(--green)';
+        btnEl.style.borderStyle = 'solid';
+        btnEl.style.background = 'rgba(76,175,130,.12)';
+      }
+      showToast('✓ ' + name + ' を選択');
+    } else {
+      arr.splice(pos, 1);
+      if (btnEl) {
+        btnEl.style.borderColor = 'var(--accent)';
+        btnEl.style.color = 'var(--accent)';
+        btnEl.style.borderStyle = 'dashed';
+        btnEl.style.background = 'var(--card2)';
+      }
+      showToast('✕ ' + name + ' の選択を解除');
+    }
+    // Show/hide addition rewrite bar
+    var bar = document.getElementById('rewrite-bar-' + idx);
+    if (bar) {
+      var hasSubs = selectedSubs[idx] && Object.keys(selectedSubs[idx]).length > 0;
+      var hasAdds = selectedAdditions[idx] && selectedAdditions[idx].length > 0;
+      bar.style.display = (hasSubs || hasAdds) ? 'block' : 'none';
+    }
+  }
+
+  // ---- Chat ----
+  var chatHistories = {};  // {recipeIndex: [{role, content}]}
+  var recipeData = [];     // store full recipe objects for context
+
+  function toggleChat(idx) {
+    var body = document.getElementById('chat-body-' + idx);
+    body.classList.toggle('open');
+  }
+
+  function sendChat(idx) {
+    var input = document.getElementById('chat-input-' + idx);
+    var msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+
+    if (!chatHistories[idx]) chatHistories[idx] = [];
+
+    appendMsg(idx, 'user', msg);
+    var thinking = appendMsg(idx, 'thinking', '考え中…');
+
+    document.getElementById('chat-send-' + idx).disabled = true;
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        recipe: recipeData[idx],
+        history: chatHistories[idx].slice(),
+        message: msg,
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      thinking.remove();
+      document.getElementById('chat-send-' + idx).disabled = false;
+      if (data.error) {
+        appendMsg(idx, 'ai', '⚠ ' + data.error);
+        return;
+      }
+      appendMsg(idx, 'ai', data.reply);
+      chatHistories[idx].push({role: 'user', content: msg});
+      chatHistories[idx].push({role: 'assistant', content: data.reply});
+    })
+    .catch(function(e) {
+      thinking.remove();
+      document.getElementById('chat-send-' + idx).disabled = false;
+      appendMsg(idx, 'ai', '⚠ 通信エラー: ' + e.message);
+    });
+  }
+
+  function appendMsg(idx, type, text) {
+    var msgs = document.getElementById('chat-msgs-' + idx);
+    var el = document.createElement('div');
+    el.className = 'msg msg-' + type;
+    el.textContent = text;
+    msgs.appendChild(el);
+    msgs.scrollTop = msgs.scrollHeight;
+    return el;
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

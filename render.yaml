@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: recipe-app
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn recipe_server:app
+    envVars:
+      - key: SPOONACULAR_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MODEL
+        value: claude-haiku-4-5

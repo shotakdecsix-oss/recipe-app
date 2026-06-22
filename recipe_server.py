@@ -47,7 +47,7 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
         if exclude_titles else ""
     )
 
-    return f"""あなたは料理とお酒のプロです。以下の情報をもとに、バラエティ豊かなレシピを5品、日本語で詳しく提案してください。
+    return f"""あなたは料理とお酒のプロです。以下の情報をもとに、バラエティ豊かなレシピを3品、日本語で詳しく提案してください。
 
 ## ユーザー情報
 - 手持ちの食材: {', '.join(ingredients)}
@@ -57,7 +57,7 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 {drink_line}
 
 ## タスク
-手持ち食材を活かして作れるレシピを **5品** 考え、以下のJSON形式で回答してください。
+手持ち食材を活かして作れるレシピを **3品** 考え、以下のJSON形式で回答してください。
 - ジャンル（和・洋・中・エスニック等）や調理法（炒め・煮込み・揚げ等）をバラけさせる
 - 説明文はすべて日本語で
 - 材料は分量を{servings}人前で記載（例: 「鶏もも肉 300g」「醤油 大さじ2」）
@@ -108,7 +108,7 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 JSON以外は出力しないでください。"""
 
 
-def call_claude(prompt: str, max_tokens: int = 8192) -> list:
+def call_claude(prompt: str, max_tokens: int = 4096) -> list:
     message = anthropic_client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
@@ -148,7 +148,7 @@ def ping():
     return jsonify({"ok": True, "method": request.method})
 
 
-@app.route("/api/suggest", methods=["POST"])
+@app.route("/api/recipe", methods=["POST"])
 def suggest():
     body = request.get_json(force=True)
     ingredients = [i.strip() for i in body.get("ingredients", []) if i.strip()]
@@ -176,7 +176,7 @@ def suggest():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/retry", methods=["POST"])
+@app.route("/api/recipe/next", methods=["POST"])
 def retry():
     body = request.get_json(force=True)
     ingredients = [i.strip() for i in body.get("ingredients", []) if i.strip()]

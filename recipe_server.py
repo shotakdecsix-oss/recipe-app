@@ -130,7 +130,7 @@ def ask_claude(ingredients: list[str], mood: str, servings: int,
 {candidates_text}
 
 ## タスク
-上記候補から最も気分・食材に合う **2品** を選び、以下のJSON形式で回答してください。
+上記候補から最も気分・食材に合う **5品** を選び、以下のJSON形式で回答してください。
 - 説明文はすべて日本語で
 - 材料は分量を必ず{servings}人前で記載（例: 「鶏もも肉 300g」「醤油 大さじ2」）
 - 調味料・塩気・旨味のバランスを考慮し、必要な調味料を補完して記載すること
@@ -184,7 +184,7 @@ JSON以外は出力しないでください。"""
 
     message = anthropic_client.messages.create(
         model=MODEL,
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = message.content[0].text.strip()

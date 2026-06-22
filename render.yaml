@@ -11,3 +11,5 @@ services:
         sync: false
       - key: MODEL
         value: claude-haiku-4-5
+      - key: MAX_RECIPES
+        value: "12"

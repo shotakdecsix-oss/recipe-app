@@ -3,7 +3,7 @@ services:
     name: recipe-app
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn recipe_server:app
+    startCommand: gunicorn recipe_server:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
     envVars:
       - key: SPOONACULAR_API_KEY
         sync: false

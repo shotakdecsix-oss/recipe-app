@@ -6,9 +6,10 @@ Config: recipe_config.json (DO NOT write API keys in chat or code comments)
 
 import json
 import os
+import time
 import anthropic
-from flask import Flask, request, jsonify, send_from_directory
-from datetime import datetime
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
+from datetime import datetime, timezone, timedelta
 
 # ---------------------------------------------------------------------------
 # Config
@@ -28,7 +29,8 @@ PORT          = int(os.environ.get("PORT", CFG.get("port", 5050)))
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 app = Flask(__name__, static_folder=BASE_DIR)
 
-SERVER_START = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+JST = timezone(timedelta(hours=9))
+SERVER_START = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
 
 # ---------------------------------------------------------------------------
 # Claude helpers
@@ -130,6 +132,47 @@ def call_claude(prompt: str, max_tokens: int = 4096) -> list:
         raise
 
 
+def stream_recipe_response(prompt: str):
+    """Stream Claude response as SSE events, send parsed JSON when done."""
+    full_text = ""
+    last_ping = time.time()
+
+    try:
+        with anthropic_client.messages.stream(
+            model=MODEL,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        ) as stream:
+            for text in stream.text_stream:
+                full_text += text
+                now = time.time()
+                if now - last_ping >= 1.5:
+                    yield ": ping\n\n"
+                    last_ping = now
+
+        raw = full_text.strip()
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+
+        recipes = json.loads(raw)
+        payload = {
+            "done": True,
+            "recipes": recipes,
+            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
+            "candidate_count": len(recipes),
+        }
+        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    except json.JSONDecodeError:
+        print(f"[ERROR] Claude raw output:\n{full_text[:800]}")
+        err = {"error": "AIの応答を解析できませんでした。もう一度お試しください"}
+        yield f"data: {json.dumps(err)}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -160,20 +203,12 @@ def suggest():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
 
-    try:
-        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, [])
-        recipes = call_claude(prompt)
-        return jsonify({
-            "recipes": recipes,
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "candidate_count": len(recipes),
-        })
-    except anthropic.APIError as e:
-        return jsonify({"error": f"Claude APIエラー: {e}"}), 502
-    except json.JSONDecodeError:
-        return jsonify({"error": "AIの応答を解析できませんでした。もう一度お試しください"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    prompt = build_prompt(ingredients, mood, servings, max_time, drink, [])
+    return Response(
+        stream_with_context(stream_recipe_response(prompt)),
+        mimetype="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 @app.route("/api/recipe/next", methods=["POST"])
@@ -189,16 +224,12 @@ def retry():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
 
-    try:
-        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
-        recipes = call_claude(prompt)
-        return jsonify({
-            "recipes": recipes,
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "candidate_count": len(recipes),
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    prompt = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
+    return Response(
+        stream_with_context(stream_recipe_response(prompt)),
+        mimetype="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 @app.route("/api/rewrite", methods=["POST"])

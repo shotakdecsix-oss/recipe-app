@@ -499,7 +499,7 @@
   </div>
 
   <button class="btn-suggest" id="btn-suggest" onclick="suggest()">✨ レシピを提案する</button>
-  <button onclick="testPost()" style="width:100%;margin-top:8px;background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px;font-size:.78rem;cursor:pointer">🔧 POST通信テスト</button>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -527,16 +527,41 @@
 <div id="results"></div>
 
 <script>
-  // ---- POST test ----
-  function testPost() {
-    fetch('/api/ping', {
+
+  // ---- Streaming fetch helper ----
+  function readRecipeStream(url, body, onSuccess) {
+    fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({test: true})
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ alert('POST OK: ' + JSON.stringify(d)); })
-    .catch(function(e){ alert('POST失敗: ' + e.message + '\n' + e); });
+      body: JSON.stringify(body)
+    }).then(function(response) {
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+      function pump() {
+        return reader.read().then(function(result) {
+          if (result.done) { setLoading(false); return; }
+          buf += decoder.decode(result.value, {stream: true});
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          for (var i = 0; i < parts.length; i++) {
+            var line = parts[i].trim();
+            if (!line.startsWith('data: ')) continue;
+            try {
+              var data = JSON.parse(line.slice(6));
+              if (data.error) { setLoading(false); showError(data.error); return; }
+              if (data.done)  { setLoading(false); onSuccess(data); return; }
+            } catch(e) {}
+          }
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function(e) {
+      setLoading(false);
+      console.error('[RecipeApp] stream error:', e);
+      showError('通信エラーが発生しました: ' + e.message);
+    });
   }
 
   // ---- Deploy info ----
@@ -646,32 +671,15 @@
     lastMaxTime = document.getElementById('max-time').value;
     lastDrink = document.getElementById('drink').value.trim();
     shownTitles = [];
-
     setLoading(true);
     document.getElementById('results').innerHTML = '';
 
-    fetch('/api/recipe', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        ingredients: lastIngredients,
-        mood: lastMood,
-        servings: lastServings,
-        max_time: lastMaxTime,
-        drink: lastDrink,
-      })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      setLoading(false);
-      if (data.error) { showError(data.error); return; }
+    readRecipeStream('/api/recipe', {
+      ingredients: lastIngredients, mood: lastMood,
+      servings: lastServings, max_time: lastMaxTime, drink: lastDrink
+    }, function(data) {
       shownTitles = data.recipes.map(function(r){ return r.title_ja; });
       renderResults(data);
-    })
-    .catch(function(e) {
-      setLoading(false);
-      console.error('[RecipeApp] fetch error:', e);
-      showError('通信エラーが発生しました: ' + e.message);
     });
   }
 
@@ -679,30 +687,13 @@
     hideError();
     setLoading(true);
 
-    fetch('/api/recipe/next', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        ingredients: lastIngredients,
-        mood: lastMood,
-        servings: lastServings,
-        max_time: lastMaxTime,
-        drink: lastDrink,
-        exclude_titles: shownTitles,
-
-      })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      setLoading(false);
-      if (data.error) { showError(data.error); return; }
+    readRecipeStream('/api/recipe/next', {
+      ingredients: lastIngredients, mood: lastMood,
+      servings: lastServings, max_time: lastMaxTime,
+      drink: lastDrink, exclude_titles: shownTitles
+    }, function(data) {
       shownTitles = shownTitles.concat(data.recipes.map(function(r){ return r.title_ja; }));
       renderResults(data);
-    })
-    .catch(function(e) {
-      setLoading(false);
-      console.error('[RecipeApp] fetch error:', e);
-      showError('通信エラーが発生しました: ' + e.message);
     });
   }
 

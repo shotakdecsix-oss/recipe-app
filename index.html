@@ -650,7 +650,7 @@
     setLoading(true);
     document.getElementById('results').innerHTML = '';
 
-    fetch('/api/suggest', {
+    fetch('/api/recipe', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -679,7 +679,7 @@
     hideError();
     setLoading(true);
 
-    fetch('/api/retry', {
+    fetch('/api/recipe/next', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({

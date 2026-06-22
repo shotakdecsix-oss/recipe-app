@@ -59,10 +59,11 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 
 ルール:
 - ジャンル・調理法をバラけさせる
-- 材料は{servings}人前の分量を記載
-- 調味料・塩気のバランスを補完すること
-- 手順は5〜6ステップで簡潔に
+- 材料は{servings}人前の分量を具体的に記載（例: 「鶏もも肉 300g」「醤油 大さじ2」）
+- 調味料・塩気・旨味のバランスを必ず補完すること
+- 手順は6〜8ステップで、各ステップに火加減・時間・コツを含める
 - ハーブ・スパイス・特殊調味料（ナンプラー、豆板醤、クミン等）は必ずsubstitutionsに代替/省略を記載
+- tipsには仕上がりをよくするコツを2つ記載
 - {drink_pairing_note}
 {exclude_note}
 
@@ -70,14 +71,19 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 [
   {{
     "title_ja": "レシピ名",
-    "reason": "選んだ理由（40字以内）",
+    "reason": "選んだ理由（50字以内）",
     "ingredients_ja": ["食材1 分量", "調味料1 分量"],
-    "steps_ja": ["手順1", "手順2", "手順3", "手順4", "手順5"],
-    "suggested_additions": [{{"name_ja": "食材名", "reason": "理由（15字以内）"}}],
-    "substitutions": [
-      {{"ingredient_name": "食材名", "alternative": "代替品", "can_omit": true, "omit_note": "省略時の影響"}}
+    "steps_ja": [
+      "【下準備】具体的な手順（火加減・時間含む）",
+      "【調理】手順",
+      "..."
     ],
-    "pairing": {{"drink": "お酒名", "reason": "理由（30字以内）"}},
+    "tips": ["コツ1", "コツ2"],
+    "suggested_additions": [{{"name_ja": "食材名", "reason": "理由（20字以内）"}}],
+    "substitutions": [
+      {{"ingredient_name": "食材名", "alternative": "代替品の説明", "can_omit": true, "omit_note": "省略時の影響"}}
+    ],
+    "pairing": {{"drink": "お酒名", "reason": "理由（40字以内）"}},
     "cook_time_min": 20,
     "difficulty": "簡単"
   }}

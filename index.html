@@ -528,6 +528,21 @@
 
 <script>
 
+  // ---- SSE parse helper ----
+  function parseSse(text, onSuccess) {
+    var parts = text.split('\n\n');
+    for (var i = 0; i < parts.length; i++) {
+      var line = parts[i].trim();
+      if (!line.startsWith('data: ')) continue;
+      try {
+        var d = JSON.parse(line.slice(6));
+        if (d.error) { setLoading(false); showError(d.error); return true; }
+        if (d.done)  { setLoading(false); try { onSuccess(d); } catch(re) { console.error('[RecipeApp] render error:', re); showError('表示エラー: ' + re.message); } return true; }
+      } catch(e) { console.error('[RecipeApp] JSON parse error:', e, line.slice(0, 80)); }
+    }
+    return false;
+  }
+
   // ---- Streaming fetch helper ----
   function readRecipeStream(url, body, onSuccess) {
     fetch(url, {
@@ -535,31 +550,38 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     }).then(function(response) {
+      if (!response.ok) {
+        return response.text().then(function(t) {
+          setLoading(false);
+          showError('サーバーエラー (' + response.status + ')');
+          console.error('[RecipeApp] server error:', t.slice(0, 300));
+        });
+      }
+      // Fallback: streaming not supported → read full text
+      if (!response.body || !response.body.getReader) {
+        return response.text().then(function(t) { parseSse(t, onSuccess); });
+      }
       var reader = response.body.getReader();
       var decoder = new TextDecoder();
       var buf = '';
       function pump() {
         return reader.read().then(function(result) {
-          if (result.done) { setLoading(false); return; }
+          if (result.done) {
+            if (buf.trim()) parseSse(buf, onSuccess);
+            setLoading(false);
+            return;
+          }
           buf += decoder.decode(result.value, {stream: true});
           var parts = buf.split('\n\n');
           buf = parts.pop();
-          for (var i = 0; i < parts.length; i++) {
-            var line = parts[i].trim();
-            if (!line.startsWith('data: ')) continue;
-            try {
-              var data = JSON.parse(line.slice(6));
-              if (data.error) { setLoading(false); showError(data.error); return; }
-              if (data.done)  { setLoading(false); onSuccess(data); return; }
-            } catch(e) {}
-          }
-          return pump();
+          var found = parseSse(parts.join('\n\n'), onSuccess);
+          if (!found) return pump();
         });
       }
       return pump();
     }).catch(function(e) {
       setLoading(false);
-      console.error('[RecipeApp] stream error:', e);
+      console.error('[RecipeApp] fetch error:', e);
       showError('通信エラーが発生しました: ' + e.message);
     });
   }

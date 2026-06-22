@@ -163,7 +163,7 @@ def stream_recipe_response(prompt: str):
             "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
             "candidate_count": len(recipes),
         }
-        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps(payload)}\n\n"
 
     except json.JSONDecodeError:
         print(f"[ERROR] Claude raw output:\n{full_text[:800]}")

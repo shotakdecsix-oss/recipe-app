@@ -6,9 +6,10 @@ Config: recipe_config.json (DO NOT write API keys in chat or code comments)
 
 import json
 import os
-import time
+import threading
+import uuid
 import anthropic
-from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
+from flask import Flask, request, jsonify, send_from_directory
 from datetime import datetime, timezone, timedelta
 
 # ---------------------------------------------------------------------------
@@ -31,6 +32,35 @@ app = Flask(__name__, static_folder=BASE_DIR)
 
 JST = timezone(timedelta(hours=9))
 SERVER_START = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
+
+# ---------------------------------------------------------------------------
+# Job queue (in-memory, single-process + threads)
+# ---------------------------------------------------------------------------
+_jobs: dict = {}
+_jobs_lock = threading.Lock()
+
+def _run_job(job_id: str, prompt: str) -> None:
+    try:
+        recipes = call_claude(prompt)
+        result = {
+            "status": "done",
+            "recipes": recipes,
+            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
+            "candidate_count": len(recipes),
+        }
+    except json.JSONDecodeError:
+        result = {"status": "error", "error": "AIの応答を解析できませんでした。もう一度お試しください"}
+    except Exception as e:
+        result = {"status": "error", "error": str(e)}
+    with _jobs_lock:
+        _jobs[job_id] = result
+
+def _start_job(prompt: str) -> str:
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "pending"}
+    threading.Thread(target=_run_job, args=(job_id, prompt), daemon=True).start()
+    return job_id
 
 # ---------------------------------------------------------------------------
 # Claude helpers
@@ -192,22 +222,10 @@ def suggest():
     servings    = int(body.get("servings", 2))
     max_time    = body.get("max_time", "")
     drink       = body.get("drink", "")
-
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
-
-    try:
-        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, [])
-        recipes = call_claude(prompt)
-        return jsonify({
-            "recipes": recipes,
-            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
-            "candidate_count": len(recipes),
-        })
-    except json.JSONDecodeError:
-        return jsonify({"error": "AIの応答を解析できませんでした。もう一度お試しください"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    prompt = build_prompt(ingredients, mood, servings, max_time, drink, [])
+    return jsonify({"job_id": _start_job(prompt)})
 
 
 @app.route("/api/recipe/next", methods=["POST"])
@@ -219,20 +237,19 @@ def retry():
     max_time    = body.get("max_time", "")
     drink       = body.get("drink", "")
     exclude     = body.get("exclude_titles", [])
-
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
+    prompt = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
+    return jsonify({"job_id": _start_job(prompt)})
 
-    try:
-        prompt  = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
-        recipes = call_claude(prompt)
-        return jsonify({
-            "recipes": recipes,
-            "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
-            "candidate_count": len(recipes),
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/job/<job_id>")
+def get_job(job_id):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+    return jsonify(job)
 
 
 @app.route("/api/rewrite", methods=["POST"])

@@ -684,27 +684,42 @@
     document.getElementById('error-box').style.display = 'none';
   }
 
+  function pollJob(jobId, onSuccess) {
+    fetch('/api/job/' + jobId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === 'pending') {
+        setTimeout(function() { pollJob(jobId, onSuccess); }, 2000);
+      } else if (data.status === 'done') {
+        setLoading(false);
+        onSuccess(data);
+      } else {
+        setLoading(false);
+        showError(data.error || 'エラーが発生しました');
+      }
+    })
+    .catch(function(e) {
+      setLoading(false);
+      showError('通信エラー: ' + e.message);
+    });
+  }
+
   function fetchRecipes(url, body, onSuccess) {
     fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     })
-    .then(function(r) {
-      return r.json().then(function(data) {
-        if (data.error) { setLoading(false); showError(data.error); return; }
-        if (!r.ok) { setLoading(false); showError('サーバーエラー (' + r.status + ')'); return; }
-        setLoading(false);
-        onSuccess(data);
-      });
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { setLoading(false); showError(data.error); return; }
+      if (data.job_id) { pollJob(data.job_id, onSuccess); return; }
+      setLoading(false);
+      onSuccess(data);
     })
     .catch(function(e) {
       setLoading(false);
-      console.error('[RecipeApp] error:', e);
-      var msg = (e instanceof SyntaxError || (e.message && e.message.indexOf('did not match') >= 0))
-        ? '生成に時間がかかりすぎました。もう一度お試しください。'
-        : ('通信エラー: ' + e.message);
-      showError(msg);
+      showError('通信エラー: ' + e.message);
     });
   }
 

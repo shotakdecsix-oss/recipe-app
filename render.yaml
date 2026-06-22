@@ -5,11 +5,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn recipe_server:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
     envVars:
-      - key: SPOONACULAR_API_KEY
-        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: MODEL
         value: claude-haiku-4-5
-      - key: MAX_RECIPES
-        value: "12"

@@ -311,6 +311,66 @@ JSON以外は出力しないでください。"""
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/rewrite-from-chat", methods=["POST"])
+def rewrite_from_chat():
+    body         = request.get_json(force=True)
+    recipe       = body.get("recipe", {})
+    chat_history = body.get("chat_history", [])
+    servings     = int(body.get("servings", 2))
+
+    if not recipe or not chat_history:
+        return jsonify({"error": "レシピまたはチャット履歴がありません"}), 400
+
+    chat_text = "\n".join([
+        ("ユーザー" if m["role"] == "user" else "AI") + ": " + m["content"]
+        for m in chat_history
+    ])
+
+    prompt = f"""以下のレシピについて、ユーザーとAIの会話内容を踏まえてレシピを改善・更新してください。
+
+## 元レシピ
+- レシピ名: {recipe.get('title_ja', '')}
+- {servings}人前
+- 材料: {', '.join(recipe.get('ingredients_ja', []))}
+- 作り方（概要）: {' / '.join((recipe.get('steps_ja') or [])[:4])}
+
+## 会話内容（これを反映すること）
+{chat_text}
+
+## ルール
+- 会話で提案・確認された内容（代替食材、アレンジ、調理のコツ等）をレシピに反映する
+- ingredients_ja に列挙した全食材・調味料が steps_ja のいずれかに登場しているか確認し、漏れがあれば手順に組み込む
+- アクが出る食材を使う場合はあく取りの手順を明記する
+
+## 出力形式（JSON）
+```json
+{{
+  "ingredients_ja": ["食材1 分量", "食材2 分量"],
+  "steps_ja": ["手順1", "手順2", "..."],
+  "tips": ["変更に関するコツや注意点"]
+}}
+```
+
+JSON以外は出力しないでください。"""
+
+    try:
+        message = anthropic_client.messages.create(
+            model=MODEL,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = message.content[0].text.strip()
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+        return jsonify({"updated": json.loads(raw)})
+    except json.JSONDecodeError:
+        return jsonify({"error": "AIの応答を解析できませんでした"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     body    = request.get_json(force=True)

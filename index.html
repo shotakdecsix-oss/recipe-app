@@ -866,6 +866,12 @@
         + 'onkeydown="if(event.key===\'Enter\')sendChat(' + i + ')">'
         + '<button class="chat-send" id="chat-send-' + i + '" onclick="sendChat(' + i + ')">送信</button>'
         + '</div>'
+        + '<div id="chat-rewrite-bar-' + i + '" style="display:none;margin-top:10px">'
+        + '<button onclick="applyRewriteFromChat(' + i + ')" '
+        + 'style="width:100%;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.85rem;font-weight:700;cursor:pointer">'
+        + '💬 この会話を踏まえてレシピを更新'
+        + '</button>'
+        + '</div>'
         + '</div>'
         + '</div>'
         + '</div>';
@@ -1140,11 +1146,49 @@
       appendMsg(idx, 'ai', data.reply);
       chatHistories[idx].push({role: 'user', content: msg});
       chatHistories[idx].push({role: 'assistant', content: data.reply});
+      // Show "apply chat to recipe" button after first AI reply
+      var chatRewriteBar = document.getElementById('chat-rewrite-bar-' + idx);
+      if (chatRewriteBar) chatRewriteBar.style.display = 'block';
     })
     .catch(function(e) {
       thinking.remove();
       document.getElementById('chat-send-' + idx).disabled = false;
       appendMsg(idx, 'ai', '⚠ 通信エラー: ' + e.message);
+    });
+  }
+
+  function applyRewriteFromChat(idx) {
+    var history = chatHistories[idx] || [];
+    if (!history.length) return;
+    var recipe = recipeData[idx];
+
+    var bar = document.getElementById('chat-rewrite-bar-' + idx);
+    var btn = bar ? bar.querySelector('button') : null;
+    if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+
+    fetch('/api/rewrite-from-chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        recipe: recipe,
+        chat_history: history,
+        servings: lastServings,
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (data.error) { showToast('エラー: ' + data.error); return; }
+      var u = data.updated;
+      if (u.ingredients_ja) recipeData[idx].ingredients_ja = u.ingredients_ja;
+      if (u.steps_ja)       recipeData[idx].steps_ja       = u.steps_ja;
+      if (u.tips)           recipeData[idx].tips           = u.tips;
+      chatHistories[idx] = [];
+      renderResults({recipes: recipeData, generated_at: lastGenAt, candidate_count: lastCandCount, _fresh: false});
+      showToast('✨ レシピを更新しました');
+    })
+    .catch(function(e) { showToast('通信エラー: ' + e.message); })
+    .finally(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '💬 この会話を踏まえてレシピを更新'; }
     });
   }
 

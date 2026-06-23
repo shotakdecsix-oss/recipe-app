@@ -95,6 +95,8 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 - ハーブ・スパイス・特殊調味料（ナンプラー、豆板醤、クミン等）は必ずsubstitutionsに代替/省略を記載
 - tipsには仕上がりをよくするコツを2つ記載
 - {drink_pairing_note}
+- 【食材チェック】出力前に必ず self-check: ingredients_ja に列挙した全ての食材・調味料が steps_ja のいずれかのステップに登場しているか確認し、漏れがあれば手順に組み込んでから出力すること
+- 【あく取り】肉類・魚介・豆類・根菜など灰汁が出る食材を使う場合は、あく取りの手順（タイミング・方法）を steps_ja に必ず明記すること
 {exclude_note}
 
 ```json

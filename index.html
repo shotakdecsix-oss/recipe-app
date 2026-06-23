@@ -357,6 +357,32 @@
   }
   .toast.show { opacity: 1; }
 
+  /* ---- Timer ---- */
+  .timer-btn {
+    background: rgba(108,138,255,.15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: .72rem;
+    padding: 2px 9px;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .timer-btn:hover { background: rgba(108,138,255,.3); }
+  .timer-display {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--gold);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    min-width: 38px;
+    text-align: right;
+  }
+  .timer-done { color: var(--green); }
+
   /* ---- Chat ---- */
   .chat-section {
     border-top: 1px solid var(--border);
@@ -771,6 +797,11 @@
     if (data.candidate_count) lastCandCount = data.candidate_count;
     // Only reset chat/subs on fresh results
     if (data._fresh !== false) { chatHistories = {}; selectedSubs = {}; recipeSubsMap = []; }
+    // Clear running timers before re-render
+    Object.keys(activeTimers).forEach(function(id) {
+      if (activeTimers[id] && activeTimers[id].interval) clearInterval(activeTimers[id].interval);
+    });
+    activeTimers = {};
     var el = document.getElementById('results');
 
     var diffClass = function(d) {
@@ -784,7 +815,17 @@
 
     var cards = data.recipes.map(function(r, i) {
       var steps = (r.steps_ja || []).map(function(s, si) {
-        return '<li><span class="step-num">' + (si+1) + '</span><span>' + esc(s) + '</span></li>';
+        var secs = parseStepTime(s);
+        var tid = 'timer-' + i + '-' + si;
+        var timerHtml = secs
+          ? '<span class="timer-display" id="disp-' + tid + '"></span>'
+            + '<button class="timer-btn" id="btn-' + tid + '" onclick="toggleTimer(\'' + tid + '\',' + secs + ')">⏱ ' + fmtTime(secs) + '</button>'
+          : '';
+        return '<li style="align-items:center">'
+          + '<span class="step-num">' + (si+1) + '</span>'
+          + '<span style="flex:1">' + esc(s) + '</span>'
+          + timerHtml
+          + '</li>';
       }).join('');
 
       // Build lookup dict from substitutions array: {ingredient_name: sub_obj}
@@ -1200,6 +1241,91 @@
     msgs.appendChild(el);
     msgs.scrollTop = msgs.scrollHeight;
     return el;
+  }
+
+  // ---- Timer ----
+  var activeTimers = {};
+
+  function parseStepTime(text) {
+    var m;
+    m = text.match(/(\d+)分(\d+)秒/);
+    if (m) return parseInt(m[1]) * 60 + parseInt(m[2]);
+    m = text.match(/(\d+)[〜～](\d+)分/);
+    if (m) return parseInt(m[2]) * 60;  // use larger value
+    m = text.match(/(\d+)分/);
+    if (m) { var mins = parseInt(m[1]); if (mins > 0 && mins <= 120) return mins * 60; }
+    m = text.match(/(\d+)秒/);
+    if (m) return parseInt(m[1]);
+    return null;
+  }
+
+  function fmtTime(secs) {
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return m > 0 ? (m + '分' + (s > 0 ? s + '秒' : '')) : s + '秒';
+  }
+
+  function fmtCountdown(secs) {
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function toggleTimer(tid, totalSecs) {
+    var dispEl = document.getElementById('disp-' + tid);
+    var btnEl  = document.getElementById('btn-' + tid);
+    if (!dispEl || !btnEl) return;
+    if (activeTimers[tid]) {
+      if (activeTimers[tid].paused) {
+        activeTimers[tid].paused = false;
+        runTimer(tid);
+        btnEl.textContent = '⏸';
+      } else {
+        clearInterval(activeTimers[tid].interval);
+        activeTimers[tid].paused = true;
+        btnEl.textContent = '▶ 再開';
+      }
+    } else {
+      activeTimers[tid] = { remaining: totalSecs, paused: false, interval: null };
+      dispEl.textContent = fmtCountdown(totalSecs);
+      btnEl.textContent = '⏸';
+      runTimer(tid);
+    }
+  }
+
+  function runTimer(tid) {
+    var state = activeTimers[tid];
+    if (!state) return;
+    state.interval = setInterval(function() {
+      var dispEl = document.getElementById('disp-' + tid);
+      var btnEl  = document.getElementById('btn-' + tid);
+      if (!dispEl) { clearInterval(state.interval); return; }
+      state.remaining--;
+      if (state.remaining <= 0) {
+        clearInterval(state.interval);
+        delete activeTimers[tid];
+        dispEl.textContent = '✅ 完了';
+        dispEl.className = 'timer-display timer-done';
+        if (btnEl) btnEl.style.display = 'none';
+        beep();
+      } else {
+        dispEl.textContent = fmtCountdown(state.remaining);
+      }
+    }, 1000);
+  }
+
+  function beep() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.25, 0.5].forEach(function(t) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.4, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.2);
+      });
+    } catch(e) {}
   }
 
   function esc(s) {

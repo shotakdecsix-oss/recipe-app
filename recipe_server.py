@@ -39,9 +39,21 @@ SERVER_START = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
 _jobs: dict = {}
 _jobs_lock = threading.Lock()
 
-def _run_job(job_id: str, prompt: str) -> None:
+def _coverage_score(recipe: dict, ingredients: list[str]) -> int:
+    """指定食材のうちrecipeのingredients_jaに含まれる数を返す（網羅スコア）。"""
+    if not ingredients:
+        return 0
+    recipe_ings = ' '.join(recipe.get("ingredients_ja") or []).lower()
+    return sum(1 for ing in ingredients if ing.lower() in recipe_ings)
+
+def _sort_by_coverage(recipes: list, ingredients: list[str]) -> list:
+    """網羅スコア降順でレシピをソートして返す。"""
+    return sorted(recipes, key=lambda r: _coverage_score(r, ingredients), reverse=True)
+
+def _run_job(job_id: str, prompt: str, ingredients: list[str]) -> None:
     try:
         recipes = call_claude(prompt)
+        recipes = _sort_by_coverage(recipes, ingredients)
         result = {
             "status": "done",
             "recipes": recipes,
@@ -55,11 +67,11 @@ def _run_job(job_id: str, prompt: str) -> None:
     with _jobs_lock:
         _jobs[job_id] = result
 
-def _start_job(prompt: str) -> str:
+def _start_job(prompt: str, ingredients: list[str]) -> str:
     job_id = str(uuid.uuid4())
     with _jobs_lock:
         _jobs[job_id] = {"status": "pending"}
-    threading.Thread(target=_run_job, args=(job_id, prompt), daemon=True).start()
+    threading.Thread(target=_run_job, args=(job_id, prompt, ingredients), daemon=True).start()
     return job_id
 
 # ---------------------------------------------------------------------------
@@ -87,6 +99,11 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 - 調理時間: {max_time or '特になし'}
 {drink_line}
 
+【最優先ルール — 食材の網羅】
+- 指定した食材（{', '.join(ingredients)}）は、3品の合計で**必ず全て**使い切ること。どの食材も1品以上に登場させること。
+- 各レシピはできる限り多くの指定食材を主要食材として使うこと。相性が良い食材は同じレシピに積極的に組み込む。
+- 指定食材を使わない（または脇役にもできない）理由がある場合のみ、reasonにその旨を説明すること。
+
 ルール:
 - ジャンル・調理法をバラけさせる
 - 材料は{servings}人前の分量を具体的に記載（例: 「鶏もも肉 300g」「醤油 大さじ2」）
@@ -95,7 +112,7 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
 - ハーブ・スパイス・特殊調味料（ナンプラー、豆板醤、クミン等）は必ずsubstitutionsに代替/省略を記載
 - tipsには仕上がりをよくするコツを2つ記載
 - {drink_pairing_note}
-- 【食材チェック】出力前に必ず self-check: ingredients_ja に列挙した全ての食材・調味料が steps_ja のいずれかのステップに登場しているか確認し、漏れがあれば手順に組み込んでから出力すること
+- 【食材チェック】出力前に self-check: ingredients_ja に列挙した全食材が steps_ja のいずれかに登場しているか確認し、漏れがあれば手順に組み込んでから出力すること
 - 【あく取り】肉類・魚介・豆類・根菜など灰汁が出る食材を使う場合は、あく取りの手順（タイミング・方法）を steps_ja に必ず明記すること
 {exclude_note}
 
@@ -157,7 +174,7 @@ def call_claude(prompt: str, max_tokens: int = 4096) -> list:
         raise
 
 
-def stream_recipe_response(prompt: str):
+def stream_recipe_response(prompt: str, ingredients: list[str] = None):
     """Stream Claude response as SSE events, send parsed JSON when done."""
     full_text = ""
     last_ping = time.time()
@@ -182,6 +199,7 @@ def stream_recipe_response(prompt: str):
             raw = raw.split("```")[1].split("```")[0].strip()
 
         recipes = json.loads(raw)
+        recipes = _sort_by_coverage(recipes, ingredients or [])
         payload = {
             "done": True,
             "recipes": recipes,
@@ -227,7 +245,7 @@ def suggest():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
     prompt = build_prompt(ingredients, mood, servings, max_time, drink, [])
-    return jsonify({"job_id": _start_job(prompt)})
+    return jsonify({"job_id": _start_job(prompt, ingredients)})
 
 
 @app.route("/api/recipe/next", methods=["POST"])
@@ -242,7 +260,7 @@ def retry():
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
     prompt = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
-    return jsonify({"job_id": _start_job(prompt)})
+    return jsonify({"job_id": _start_job(prompt, ingredients)})
 
 
 @app.route("/api/job/<job_id>")

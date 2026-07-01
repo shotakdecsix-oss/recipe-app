@@ -472,6 +472,27 @@
   }
   .chat-send:hover { opacity: .85; }
   .chat-send:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ---- Copy button ---- */
+  .btn-copy {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .75rem;
+    padding: 6px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+    min-width: 86px;
+    text-align: center;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-copy:hover { color: var(--accent); border-color: var(--accent); }
+  .btn-copy:active { transform: scale(.96); }
 </style>
 </head>
 <body>
@@ -856,13 +877,14 @@
       }).join('');
 
       return '<div class="recipe-card">'
-        + '<div class="recipe-header">'
+        + '<div class="recipe-header" style="position:relative">'
         + '<div class="recipe-num">レシピ ' + (i+1) + '</div>'
         + '<div class="recipe-title">' + esc(r.title_ja) + '</div>'
         + '<div class="recipe-badges">'
         + (r.cook_time_min ? '<span class="badge badge-time">⏱ ' + r.cook_time_min + '分</span>' : '')
         + (r.difficulty ? '<span class="badge ' + diffClass(r.difficulty) + '">' + esc(r.difficulty) + '</span>' : '')
         + '</div>'
+        + '<button class="btn-copy" id="copy-btn-' + i + '" onclick="copyRecipe(' + i + ')">📋 コピー</button>'
         + '</div>'
         + '<div class="recipe-body">'
         + (r.reason ? '<div class="section-title">選んだ理由</div><div class="reason-box">' + esc(r.reason) + '</div>' : '')
@@ -1326,6 +1348,68 @@
         osc.stop(ctx.currentTime + t + 0.2);
       });
     } catch(e) {}
+  }
+
+  // ---- Copy recipe to clipboard ----
+  function copyRecipe(idx) {
+    var r = recipeData[idx];
+    if (!r) return;
+    var lines = [];
+    lines.push('【' + r.title_ja + '】');
+    if (r.cook_time_min) lines.push('調理時間: ' + r.cook_time_min + '分');
+    if (r.difficulty)    lines.push('難易度: ' + r.difficulty);
+    if (r.ingredients_ja && r.ingredients_ja.length) {
+      lines.push('');
+      lines.push('■ 材料');
+      r.ingredients_ja.forEach(function(ing) { lines.push('・' + ing); });
+    }
+    if (r.steps_ja && r.steps_ja.length) {
+      lines.push('');
+      lines.push('■ 作り方');
+      r.steps_ja.forEach(function(s, si) { lines.push((si+1) + '. ' + s); });
+    }
+    if (r.tips && r.tips.length) {
+      lines.push('');
+      lines.push('■ コツ・ポイント');
+      r.tips.forEach(function(t) { lines.push('・' + t); });
+    }
+    if (r.pairing) {
+      lines.push('');
+      lines.push('■ お酒のペアリング');
+      lines.push(r.pairing.drink + ': ' + r.pairing.reason);
+    }
+    var text = lines.join('\n');
+
+    function feedback() {
+      var btn = document.getElementById('copy-btn-' + idx);
+      if (!btn) return;
+      var orig = btn.textContent;
+      btn.textContent = 'コピーしました✓';
+      btn.style.color = 'var(--green)';
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 1500);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(feedback).catch(function() { fallbackCopy(text); feedback(); });
+    } else {
+      fallbackCopy(text);
+      feedback();
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
   }
 
   function esc(s) {

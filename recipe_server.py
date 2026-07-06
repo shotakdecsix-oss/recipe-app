@@ -34,6 +34,47 @@ JST = timezone(timedelta(hours=9))
 SERVER_START = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
 
 # ---------------------------------------------------------------------------
+# 料理セオリー（cooking_theory.md から起動時に読み込む）
+# ---------------------------------------------------------------------------
+def _load_cooking_theory() -> str:
+    path = os.path.join(BASE_DIR, "cooking_theory.md")
+    if not os.path.exists(path):
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        full = f.read()
+    # プロンプトに埋め込む要点だけを抽出（トークン節約のため主要5セクション）
+    sections = [
+        "## 1. 五味と味の相互作用",
+        "## 2. 旨味の相乗効果（最重要）",
+        "## 3. フレーバーペアリング理論",
+        "## 5. 食感のコントラスト",
+        "## 7. ハーブ・スパイスの使い方セオリー",
+    ]
+    result = []
+    lines = full.split("\n")
+    capturing = False
+    current_section = []
+    for line in lines:
+        is_section_start = any(line.startswith(s) for s in sections)
+        is_next_h2 = line.startswith("## ") and not is_section_start
+        if is_section_start:
+            if current_section:
+                result.append("\n".join(current_section))
+            current_section = [line]
+            capturing = True
+        elif capturing and is_next_h2:
+            result.append("\n".join(current_section))
+            current_section = []
+            capturing = False
+        elif capturing:
+            current_section.append(line)
+    if current_section:
+        result.append("\n".join(current_section))
+    return "\n\n".join(result)
+
+COOKING_THEORY = _load_cooking_theory()
+
+# ---------------------------------------------------------------------------
 # Job queue (in-memory, single-process + threads)
 # ---------------------------------------------------------------------------
 _jobs: dict = {}
@@ -91,7 +132,13 @@ def build_prompt(ingredients: list[str], mood: str, servings: int,
         if exclude_titles else ""
     )
 
+    theory_block = (
+        f"\n【料理セオリー — 以下の知識をレシピ提案に必ず活かすこと】\n{COOKING_THEORY}\n"
+        if COOKING_THEORY else ""
+    )
+
     return f"""あなたは料理とお酒のプロです。以下の条件でレシピを3品、日本語のJSONで返してください。
+{theory_block}
 
 - 手持ちの食材: {', '.join(ingredients)}
 - 気分: {mood or '特になし'}
@@ -242,9 +289,10 @@ def suggest():
     servings    = int(body.get("servings", 2))
     max_time    = body.get("max_time", "")
     drink       = body.get("drink", "")
+    exclude     = body.get("exclude_titles", [])
     if not ingredients:
         return jsonify({"error": "食材を入力してください"}), 400
-    prompt = build_prompt(ingredients, mood, servings, max_time, drink, [])
+    prompt = build_prompt(ingredients, mood, servings, max_time, drink, exclude)
     return jsonify({"job_id": _start_job(prompt, ingredients)})
 
 

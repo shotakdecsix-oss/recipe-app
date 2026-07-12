@@ -676,6 +676,7 @@
     letter-spacing: .6px;
     margin-bottom: 8px;
   }
+  #kept-tabs-count { color: var(--muted); font-weight: 500; font-size: .78rem; }
   .kept-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
   .kept-tab {
     background: rgba(76,175,130,.12);
@@ -726,10 +727,12 @@
 </header>
 
 <!-- Kept dishes (tabs) -->
-<div class="kept-tabs-wrap" id="kept-tabs-wrap" style="display:none">
-  <div class="kept-tabs-label">✅ 決定した献立</div>
-  <div class="kept-tabs" id="kept-tabs"></div>
-</div>
+<details class="kept-tabs-wrap acc" id="kept-tabs-wrap" style="display:none">
+  <summary>✅ 決定した献立<span id="kept-tabs-count"></span><span class="arrow">▾</span></summary>
+  <div class="d-body">
+    <div class="kept-tabs" id="kept-tabs"></div>
+  </div>
+</details>
 
 <!-- Form -->
 <div class="form-card">
@@ -913,8 +916,10 @@
   function renderKeptTabs() {
     var wrap = document.getElementById('kept-tabs-wrap');
     var el = document.getElementById('kept-tabs');
+    var countEl = document.getElementById('kept-tabs-count');
     if (!keptDishes.length) { wrap.style.display = 'none'; el.innerHTML = ''; return; }
     wrap.style.display = 'block';
+    if (countEl) countEl.textContent = '（' + keptDishes.length + '件）';
     el.innerHTML = keptDishes.map(function(r) {
       return '<button class="kept-tab" onclick="openKeptModal(\'' + r._id + '\')">'
         + '🍽 ' + esc(r.title_ja)

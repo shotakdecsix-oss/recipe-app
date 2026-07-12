@@ -23,18 +23,41 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    font-family: "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;
     min-height: 100vh;
     padding: 24px 16px 60px;
   }
 
-  /* ---- Header ---- */
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
+  /* ---- Header (compressed to 1 line) ---- */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 640px;
+    margin: 0 auto 20px;
   }
-  .header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -.5px; }
-  .header p  { color: var(--muted); margin-top: 6px; font-size: .88rem; }
+  .app-header h1 { font-size: 1.2rem; font-weight: 800; letter-spacing: -.3px; }
+  .btn-reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: .75rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color .15s, color .15s;
+  }
+  .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+  .app-footer {
+    text-align: center;
+    font-size: 9px;
+    color: var(--border);
+    padding-top: 20px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
 
   /* ---- Form card ---- */
   .form-card {
@@ -133,8 +156,10 @@
   /* ---- Loading ---- */
   .loading {
     text-align: center;
-    padding: 40px;
+    padding: 20px 0 10px;
     display: none;
+    max-width: 640px;
+    margin: 0 auto;
   }
   .spinner {
     width: 40px; height: 40px;
@@ -142,10 +167,10 @@
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin .8s linear infinite;
-    margin: 0 auto 16px;
+    margin: 0 auto 14px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading p { color: var(--muted); font-size: .88rem; }
+  .loading-msg { text-align: center; color: var(--muted); font-size: .8rem; margin: 4px 0 14px; }
 
   /* ---- Error ---- */
   .error-box {
@@ -183,6 +208,66 @@
   .btn-retry:hover { border-color: var(--accent); color: var(--accent); }
   .btn-retry:disabled { opacity: .4; cursor: not-allowed; }
 
+  /* ---- Summary row (comparison view) ---- */
+  .sum-label {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: .6px;
+    margin-bottom: 8px;
+  }
+  .summary-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    margin-bottom: 20px;
+  }
+  .summary-row::-webkit-scrollbar { display: none; }
+  .sum-card {
+    flex: 0 0 78%;
+    max-width: 300px;
+    scroll-snap-align: start;
+    cursor: pointer;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .sum-card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .sum-num { font-size: .68rem; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  .sum-title { font-size: 1rem; font-weight: 800; margin-bottom: 6px; line-height: 1.3; }
+  .sum-meta { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .sum-reason {
+    font-size: .78rem;
+    color: var(--muted);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .sum-pair { font-size: .75rem; color: var(--gold); }
+
+  @media (min-width: 560px) {
+    .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); overflow-x: visible; scroll-snap-type: none; }
+    .sum-card { flex: none; max-width: none; }
+  }
+
+  /* ---- Skeleton loading ---- */
+  .sk {
+    background: linear-gradient(90deg, var(--card2) 25%, #2b3050 50%, var(--card2) 75%);
+    background-size: 200% 100%;
+    animation: shim 1.4s infinite;
+    border-radius: 6px;
+  }
+  @keyframes shim { to { background-position: -200% 0; } }
+  .sk-card { cursor: default; }
+
   /* Recipe card */
   .recipe-card {
     background: var(--card);
@@ -191,6 +276,7 @@
     margin-bottom: 18px;
     overflow: hidden;
   }
+  .recipe-card.current { border-color: var(--accent); }
   .recipe-header {
     background: var(--card2);
     padding: 16px 18px;
@@ -233,13 +319,37 @@
   .section-title:first-child { margin-top: 0; }
 
   .reason-box {
-    background: rgba(108,138,255,.08);
-    border-left: 3px solid var(--accent);
-    padding: 8px 12px;
-    border-radius: 0 6px 6px 0;
-    font-size: .85rem;
-    color: var(--text);
+    background: var(--card2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: .82rem;
+    line-height: 1.6;
+    color: var(--muted);
+    margin-bottom: 14px;
   }
+
+  /* ---- Accordion detail sections ---- */
+  details.acc {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  details.acc summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 14px;
+    font-size: .85rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card2);
+  }
+  details.acc summary::-webkit-details-marker { display: none; }
+  details.acc summary .arrow { margin-left: auto; color: var(--muted); transition: transform .2s; font-size: .8rem; }
+  details.acc[open] summary .arrow { transform: rotate(180deg); }
+  details.acc .d-body { padding: 12px 14px; }
 
   .ingredients-grid {
     display: flex;
@@ -254,6 +364,49 @@
     padding: 3px 10px;
     color: var(--text);
   }
+
+  /* ---- Ingredient substitution chips ---- */
+  .chip-sub {
+    background: rgba(224,92,92,.1);
+    border: 1px dashed var(--red);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: .78rem;
+    cursor: pointer;
+    color: var(--text);
+    font-family: inherit;
+    text-align: left;
+  }
+  .chip-sub--selected {
+    background: rgba(108,138,255,.18);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+  .chip-sub-note { color: var(--red); font-size: .65rem; }
+  .chip-sub--selected .chip-sub-note { color: var(--accent); font-size: .72rem; }
+  .chip-sub-orig { text-decoration: line-through; color: var(--muted); font-size: .72rem; }
+
+  /* ---- Suggested addition chips ---- */
+  .chip-add {
+    background: var(--card2);
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    font-size: .78rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .chip-add:hover { background: rgba(108,138,255,.15); }
+  .chip-add--selected {
+    border-color: var(--green);
+    border-style: solid;
+    color: var(--green);
+    background: rgba(76,175,130,.12);
+  }
+  .chip-add-reason { display: block; font-size: .65rem; color: var(--muted); margin-top: 1px; }
 
   .steps-list {
     list-style: none;
@@ -294,6 +447,22 @@
   .pairing-icon { font-size: 1.3rem; flex-shrink: 0; }
   .pairing-drink { font-size: .9rem; font-weight: 700; color: var(--gold); margin-bottom: 2px; }
   .pairing-reason { font-size: .8rem; color: var(--muted); }
+
+  /* ---- Rewrite bar ---- */
+  .rewrite-bar-wrap { margin-top: 4px; margin-bottom: 10px; }
+  .btn-rewrite {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-rewrite--chat { background: var(--green); font-size: .85rem; }
 
   /* ---- Substitution modal ---- */
   .modal-overlay {
@@ -531,17 +700,18 @@
   }
   .kept-tab-del:hover { opacity: 1; }
 
+  /* ---- Keep button (bottom of detail card) ---- */
+  .keep-bar { padding: 14px 18px 18px; border-top: 1px solid var(--border); }
   .btn-keep {
     width: 100%;
+    height: 52px;
     background: rgba(76,175,130,.12);
     border: 1px solid var(--green);
     color: var(--green);
-    font-size: .88rem;
-    font-weight: 700;
-    border-radius: 8px;
-    padding: 10px;
+    font-size: .95rem;
+    font-weight: 800;
+    border-radius: 12px;
     cursor: pointer;
-    margin-top: 4px;
     transition: background .15s;
   }
   .btn-keep:hover { background: rgba(76,175,130,.22); }
@@ -550,12 +720,10 @@
 </head>
 <body>
 
-<div class="header">
+<header class="app-header">
   <h1>🍳 冷蔵庫レシピ</h1>
-  <p>食材と気分を入れるだけで、レシピとお酒のペアリングを提案します</p>
-  <p id="deploy-info" style="font-size:.65rem;color:var(--border);margin-top:6px"></p>
-  <button onclick="resetAll()" style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 14px;font-size:.78rem;cursor:pointer">🗑 リセット</button>
-</div>
+  <button class="btn-reset" onclick="resetAll()">🗑 リセット</button>
+</header>
 
 <!-- Kept dishes (tabs) -->
 <div class="kept-tabs-wrap" id="kept-tabs-wrap" style="display:none">
@@ -636,11 +804,35 @@
 <!-- Loading -->
 <div class="loading" id="loading">
   <div class="spinner"></div>
-  <p id="loading-msg">Claudeがレシピを考えています…</p>
+  <div class="loading-msg" id="loading-msg">✨ 食材の組み合わせを考えています…</div>
+  <div class="summary-row" id="skeleton-row">
+    <div class="sum-card sk-card">
+      <div class="sk" style="height:12px;width:36%;margin-bottom:10px"></div>
+      <div class="sk" style="height:20px;width:85%;margin-bottom:10px"></div>
+      <div class="sk" style="height:12px;width:95%;margin-bottom:6px"></div>
+      <div class="sk" style="height:12px;width:70%"></div>
+    </div>
+    <div class="sum-card sk-card">
+      <div class="sk" style="height:12px;width:36%;margin-bottom:10px"></div>
+      <div class="sk" style="height:20px;width:70%;margin-bottom:10px"></div>
+      <div class="sk" style="height:12px;width:95%;margin-bottom:6px"></div>
+      <div class="sk" style="height:12px;width:60%"></div>
+    </div>
+    <div class="sum-card sk-card">
+      <div class="sk" style="height:12px;width:36%;margin-bottom:10px"></div>
+      <div class="sk" style="height:20px;width:78%;margin-bottom:10px"></div>
+      <div class="sk" style="height:12px;width:95%;margin-bottom:6px"></div>
+      <div class="sk" style="height:12px;width:65%"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Results -->
 <div id="results"></div>
+
+<footer class="app-footer">
+  <p id="deploy-info"></p>
+</footer>
 
 <script>
 
@@ -847,9 +1039,9 @@
   var shownTitles = [];
 
   var loadingMsgs = [
-    'Claudeがレシピを考えています…',
-    'Claudeがレシピを選んでいます…',
-    'お酒のペアリングを考え中…',
+    '✨ 食材の組み合わせを考えています…',
+    '📝 レシピを書いています…',
+    '🍷 ペアリングを選んでいます…',
   ];
   var msgIdx = 0;
   var msgTimer = null;
@@ -860,7 +1052,7 @@
     msgTimer = setInterval(function() {
       msgIdx = (msgIdx + 1) % loadingMsgs.length;
       document.getElementById('loading-msg').textContent = loadingMsgs[msgIdx];
-    }, 2200);
+    }, 4000);
   }
 
   function stopLoadingMsgs() {
@@ -986,6 +1178,25 @@
       + '<button class="btn-retry" id="btn-retry" onclick="retry()">🔄 別の提案を見る</button>'
       + '</div>';
 
+    // ---- Summary row (compare-first view) ----
+    var summaryHtml = '';
+    if (data.recipes && data.recipes.length) {
+      var sumCards = data.recipes.map(function(r, i) {
+        return '<div class="sum-card" id="sum-card-' + i + '" onclick="scrollToRecipe(' + i + ')">'
+          + '<div class="sum-num">レシピ ' + (i+1) + '</div>'
+          + '<div class="sum-title">' + esc(r.title_ja) + '</div>'
+          + '<div class="sum-meta">'
+          + (r.cook_time_min ? '<span class="badge badge-time">⏱ ' + r.cook_time_min + '分</span>' : '')
+          + (r.difficulty ? '<span class="badge ' + diffClass(r.difficulty) + '">' + esc(r.difficulty) + '</span>' : '')
+          + '</div>'
+          + (r.reason ? '<div class="sum-reason">' + esc(r.reason) + '</div>' : '')
+          + (r.pairing ? '<div class="sum-pair">🍷 ' + esc(r.pairing.drink) + '</div>' : '')
+          + '</div>';
+      }).join('');
+      summaryHtml = '<div class="sum-label">📊 ' + data.recipes.length + 'つの提案をくらべる（タップで詳細へ）</div>'
+        + '<div class="summary-row" id="summary-row">' + sumCards + '</div>';
+    }
+
     var cards = data.recipes.map(function(r, i) {
       var steps = (r.steps_ja || []).map(function(s, si) {
         var secs = parseStepTime(s);
@@ -1007,28 +1218,56 @@
       subsArr.forEach(function(s){ if (s.ingredient_name) subs[s.ingredient_name] = s; });
       recipeSubsMap[i] = subs;
 
-    var ings = (r.ingredients_ja || []).map(function(ing) {
+      var ings = (r.ingredients_ja || []).map(function(ing) {
         // Find matching substitution key (partial match on ingredient name)
         var subKey = Object.keys(subs).find(function(k){ return ing.indexOf(k) !== -1; });
         var sub = subKey ? subs[subKey] : null;
         var selSub = selectedSubs[i] && selectedSubs[i][subKey];
         if (sub) {
-          var chipStyle = selSub
-            ? 'background:rgba(108,138,255,.18);border:1px solid var(--accent);color:var(--accent)'
-            : 'background:rgba(224,92,92,.1);border:1px dashed var(--red);color:var(--text)';
+          var chipClass = 'chip-sub' + (selSub ? ' chip-sub--selected' : '');
           var label = selSub === '省略'
-            ? '<span style="text-decoration:line-through;color:var(--muted)">' + esc(ing) + '</span> <span style="color:var(--red);font-size:.7rem">省略</span>'
+            ? '<span class="chip-sub-orig">' + esc(ing) + '</span> <span class="chip-sub-note">省略</span>'
             : selSub
-              ? '<span style="text-decoration:line-through;color:var(--muted);font-size:.72rem">' + esc(ing) + '</span><span style="font-size:.75rem"> → ' + esc(selSub) + '</span>'
-              : esc(ing) + ' <span style="font-size:.65rem;color:var(--red)">▼変更</span>';
-          return '<button onclick="openSubModal(' + i + ',\'' + esc(subKey).replace(/'/g,"\\'") + '\')" '
-            + 'style="' + chipStyle + ';font-size:.78rem;padding:3px 10px;border-radius:20px;cursor:pointer;text-align:left">'
+              ? '<span class="chip-sub-orig">' + esc(ing) + '</span><span class="chip-sub-note"> → ' + esc(selSub) + '</span>'
+              : esc(ing) + ' <span class="chip-sub-note">▼変更</span>';
+          return '<button class="' + chipClass + '" onclick="openSubModal(' + i + ',\'' + esc(subKey).replace(/'/g,"\\'") + '\')">'
             + label + '</button>';
         }
         return '<span class="ing-chip">' + esc(ing) + '</span>';
       }).join('');
 
-      return '<div class="recipe-card">'
+      var additionsHtml = (r.suggested_additions && r.suggested_additions.length)
+        ? '<details class="acc"><summary>➕ 追加するともっと美味しくなる食材<span class="arrow">▾</span></summary>'
+          + '<div class="d-body" style="display:flex;flex-wrap:wrap;gap:8px">'
+          + r.suggested_additions.map(function(a) {
+              return '<button class="chip-add" onclick="toggleAddition(' + i + ',\'' + esc(a.name_ja).replace(/'/g,"\\'") + '\',this)" '
+                + 'title="' + esc(a.reason) + '">'
+                + '＋ ' + esc(a.name_ja)
+                + '<span class="chip-add-reason">' + esc(a.reason) + '</span>'
+                + '</button>';
+            }).join('')
+          + '</div></details>'
+        : '';
+
+      var tipsHtml = (r.tips && r.tips.length)
+        ? '<details class="acc"><summary>✦ コツ・ポイント<span class="arrow">▾</span></summary>'
+          + '<div class="d-body"><ul style="list-style:none;display:flex;flex-direction:column;gap:6px">'
+          + r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
+          + '</ul></div></details>'
+        : '';
+
+      var pairingHtml = r.pairing
+        ? '<div class="pairing-box">'
+          + '<div class="pairing-icon">🍷</div>'
+          + '<div><div class="pairing-drink">' + esc(r.pairing.drink) + '</div>'
+          + '<div class="pairing-reason">' + esc(r.pairing.reason) + '</div></div>'
+          + '</div>'
+        : '';
+
+      var hasSubsOrAdds = (selectedSubs[i] && Object.keys(selectedSubs[i]).length > 0)
+        || (selectedAdditions[i] && selectedAdditions[i].length > 0);
+
+      return '<div class="recipe-card" id="recipe-card-' + i + '" data-idx="' + i + '">'
         + '<div class="recipe-header" style="position:relative">'
         + '<div class="recipe-num">レシピ ' + (i+1) + '</div>'
         + '<div class="recipe-title">' + esc(r.title_ja) + '</div>'
@@ -1039,39 +1278,15 @@
         + '<button class="btn-copy" id="copy-btn-' + i + '" onclick="copyRecipe(' + i + ')">📋 コピー</button>'
         + '</div>'
         + '<div class="recipe-body">'
-        + '<button class="btn-keep" onclick="keepDish(' + i + ')">✅ これに決めた（次の献立へ）</button>'
-        + (r.reason ? '<div class="section-title">選んだ理由</div><div class="reason-box">' + esc(r.reason) + '</div>' : '')
-        + (ings ? '<div class="section-title">材料</div><div class="ingredients-grid">' + ings + '</div>' : '')
-        + (steps ? '<div class="section-title">作り方</div><ul class="steps-list">' + steps + '</ul>' : '')
-        /* substitutions displayed inline per ingredient - see ingredients section */
-        + (r.suggested_additions && r.suggested_additions.length
-          ? '<div class="section-title">追加するともっと美味しくなる食材</div>'
-          + '<div style="display:flex;flex-wrap:wrap;gap:8px">'
-          + r.suggested_additions.map(function(a) {
-              return '<button onclick="toggleAddition(' + i + ',\'' + esc(a.name_ja).replace(/'/g,"\\'") + '\',this)" '
-                + 'title="' + esc(a.reason) + '" '
-                + 'style="background:var(--card2);border:1px dashed var(--accent);color:var(--accent);'
-                + 'font-size:.78rem;padding:4px 12px;border-radius:20px;cursor:pointer;text-align:left;transition:background .15s" '
-                + 'onmouseover="this.style.background=\'rgba(108,138,255,.15)\'" '
-                + 'onmouseout="this.style.background=\'var(--card2)\'">'
-                + '＋ ' + esc(a.name_ja)
-                + '<span style="display:block;font-size:.65rem;color:var(--muted);margin-top:1px">' + esc(a.reason) + '</span>'
-                + '</button>';
-            }).join('')
-          + '</div>' : '')
-        + (r.tips && r.tips.length ? '<div class="section-title">コツ・ポイント</div>'
-          + '<ul style="list-style:none;display:flex;flex-direction:column;gap:6px">'
-          + r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
-          + '</ul>' : '')
-        + (r.pairing ? '<div class="section-title">お酒のペアリング</div>'
-          + '<div class="pairing-box">'
-          + '<div class="pairing-icon">🍷</div>'
-          + '<div><div class="pairing-drink">' + esc(r.pairing.drink) + '</div>'
-          + '<div class="pairing-reason">' + esc(r.pairing.reason) + '</div></div>'
-          + '</div>' : '')
-        + '<div id="rewrite-bar-' + i + '" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'
-        + '<button onclick="applyRewrite(' + i + ')" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.9rem;font-weight:700;cursor:pointer">✨ この変更でレシピを更新</button>'
+        + (r.reason ? '<div class="reason-box">' + esc(r.reason) + '</div>' : '')
+        + (ings ? '<details class="acc" open><summary>🥕 材料（' + lastServings + '人前）<span class="arrow">▾</span></summary><div class="d-body ingredients-grid">' + ings + '</div></details>' : '')
+        + (steps ? '<details class="acc" open><summary>👨‍🍳 作り方<span class="arrow">▾</span></summary><div class="d-body"><ul class="steps-list">' + steps + '</ul></div></details>' : '')
+        + '<div id="rewrite-bar-' + i + '" class="rewrite-bar-wrap" style="display:' + (hasSubsOrAdds ? 'block' : 'none') + '">'
+        + '<button class="btn-rewrite" onclick="applyRewrite(' + i + ')">✨ この変更でレシピを更新</button>'
         + '</div>'
+        + additionsHtml
+        + tipsHtml
+        + pairingHtml
         + '</div>'
         + '<div class="chat-section">'
         + '<button class="chat-toggle" onclick="toggleChat(' + i + ')">💬 このレシピについて質問する</button>'
@@ -1083,18 +1298,58 @@
         + '<button class="chat-send" id="chat-send-' + i + '" onclick="sendChat(' + i + ')">送信</button>'
         + '</div>'
         + '<div id="chat-rewrite-bar-' + i + '" style="display:none;margin-top:10px">'
-        + '<button onclick="applyRewriteFromChat(' + i + ')" '
-        + 'style="width:100%;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.85rem;font-weight:700;cursor:pointer">'
+        + '<button class="btn-rewrite btn-rewrite--chat" onclick="applyRewriteFromChat(' + i + ')">'
         + '💬 この会話を踏まえてレシピを更新'
         + '</button>'
         + '</div>'
         + '</div>'
         + '</div>'
+        + '<div class="keep-bar"><button class="btn-keep" onclick="keepDish(' + i + ')">✅ これに決めた（次の献立へ）</button></div>'
         + '</div>';
     }).join('');
 
-    el.innerHTML = meta + cards;
+    el.innerHTML = meta + summaryHtml + cards;
     saveState();
+    setupCardObserver();
+  }
+
+  // ---- Summary <-> detail card sync ----
+  var cardObserver = null;
+
+  function scrollToRecipe(i) {
+    var target = document.getElementById('recipe-card-' + i);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    highlightSummary(i);
+  }
+
+  function highlightSummary(i) {
+    document.querySelectorAll('.sum-card').forEach(function(el){ el.classList.remove('current'); });
+    document.querySelectorAll('.recipe-card').forEach(function(el){ el.classList.remove('current'); });
+    var sc = document.getElementById('sum-card-' + i);
+    var rc = document.getElementById('recipe-card-' + i);
+    if (sc) sc.classList.add('current');
+    if (rc) rc.classList.add('current');
+  }
+
+  function setupCardObserver() {
+    if (cardObserver) { cardObserver.disconnect(); cardObserver = null; }
+    var cards = document.querySelectorAll('.recipe-card');
+    if (!cards.length || !('IntersectionObserver' in window)) return;
+    cardObserver = new IntersectionObserver(function(entries) {
+      var best = null;
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting && (!best || entry.intersectionRatio > best.intersectionRatio)) {
+          best = entry;
+        }
+      });
+      if (best) {
+        var idx = best.target.getAttribute('data-idx');
+        highlightSummary(parseInt(idx, 10));
+      }
+    }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+    cards.forEach(function(c){ cardObserver.observe(c); });
+    highlightSummary(0);
   }
 
   // ---- State persistence ----
@@ -1103,6 +1358,7 @@
     tags = []; lastIngredients = []; lastMood = ''; lastServings = 2;
     lastMaxTime = ''; lastDrink = ''; shownTitles = [];
     recipeData = []; chatHistories = {}; selectedSubs = {}; recipeSubsMap = [];
+    if (cardObserver) { cardObserver.disconnect(); cardObserver = null; }
     document.getElementById('mood').value = '';
     document.getElementById('servings').value = '2';
     document.getElementById('max-time').value = '';
@@ -1294,21 +1550,11 @@
     var pos = arr.indexOf(name);
     if (pos === -1) {
       arr.push(name);
-      if (btnEl) {
-        btnEl.style.borderColor = 'var(--green)';
-        btnEl.style.color = 'var(--green)';
-        btnEl.style.borderStyle = 'solid';
-        btnEl.style.background = 'rgba(76,175,130,.12)';
-      }
+      if (btnEl) btnEl.classList.add('chip-add--selected');
       showToast('✓ ' + name + ' を選択');
     } else {
       arr.splice(pos, 1);
-      if (btnEl) {
-        btnEl.style.borderColor = 'var(--accent)';
-        btnEl.style.color = 'var(--accent)';
-        btnEl.style.borderStyle = 'dashed';
-        btnEl.style.background = 'var(--card2)';
-      }
+      if (btnEl) btnEl.classList.remove('chip-add--selected');
       showToast('✕ ' + name + ' の選択を解除');
     }
     // Show/hide addition rewrite bar

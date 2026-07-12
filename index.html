@@ -961,23 +961,22 @@
     var steps = (r.steps_ja || []).map(function(s, si) {
       return '<li style="align-items:center"><span class="step-num">' + (si+1) + '</span><span style="flex:1">' + esc(s) + '</span></li>';
     }).join('');
+    var tipsList = (r.tips && r.tips.length)
+      ? r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
+      : '';
     return '<div style="font-size:1.05rem;font-weight:800;margin-bottom:6px">' + esc(r.title_ja) + '</div>'
       + '<div class="recipe-badges" style="margin-bottom:10px">'
       + (r.cook_time_min ? '<span class="badge badge-time">⏱ ' + r.cook_time_min + '分</span>' : '')
       + (r.difficulty ? '<span class="badge badge-diff' + (r.difficulty === '難しい' ? ' hard' : '') + '">' + esc(r.difficulty) + '</span>' : '')
       + '</div>'
       + (r._keptAt ? '<div class="hint" style="margin-bottom:10px">決定日時: ' + esc(r._keptAt) + '</div>' : '')
-      + (r.reason ? '<div class="section-title">選んだ理由</div><div class="reason-box">' + esc(r.reason) + '</div>' : '')
-      + (ings ? '<div class="section-title">材料</div><div class="ingredients-grid">' + ings + '</div>' : '')
-      + (steps ? '<div class="section-title">作り方</div><ul class="steps-list">' + steps + '</ul>' : '')
-      + (r.tips && r.tips.length ? '<div class="section-title">コツ・ポイント</div>'
-        + '<ul style="list-style:none;display:flex;flex-direction:column;gap:6px">'
-        + r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
-        + '</ul>' : '')
-      + (r.pairing ? '<div class="section-title">お酒のペアリング</div>'
-        + '<div class="pairing-box"><div class="pairing-icon">🍷</div>'
+      + (r.reason ? '<div class="reason-box" style="margin-bottom:14px">' + esc(r.reason) + '</div>' : '')
+      + (ings ? '<details class="acc"><summary>🥕 材料<span class="arrow">▾</span></summary><div class="d-body ingredients-grid">' + ings + '</div></details>' : '')
+      + (steps ? '<details class="acc"><summary>👨‍🍳 作り方<span class="arrow">▾</span></summary><div class="d-body"><ul class="steps-list">' + steps + '</ul></div></details>' : '')
+      + (tipsList ? '<details class="acc"><summary>✦ コツ・ポイント<span class="arrow">▾</span></summary><div class="d-body"><ul style="list-style:none;display:flex;flex-direction:column;gap:6px">' + tipsList + '</ul></div></details>' : '')
+      + (r.pairing ? '<details class="acc"><summary>🍷 お酒のペアリング<span class="arrow">▾</span></summary><div class="d-body"><div class="pairing-box"><div class="pairing-icon">🍷</div>'
         + '<div><div class="pairing-drink">' + esc(r.pairing.drink) + '</div>'
-        + '<div class="pairing-reason">' + esc(r.pairing.reason) + '</div></div></div>' : '');
+        + '<div class="pairing-reason">' + esc(r.pairing.reason) + '</div></div></div></div></details>' : '');
   }
 
   // ---- Restore previous session ----

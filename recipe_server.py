@@ -337,16 +337,25 @@ def rewrite():
     for add in additions:
         changes.append(f"- 「{add}」を新たに追加する（分量・使い方・手順への組み込みも記載）")
 
+    steps_all = "\n".join(
+        f"{i+1}. {st}" for i, st in enumerate(recipe.get("steps_ja") or [])
+    )
+
     prompt = f"""以下のレシピを、指定された食材の変更・追加を適用して書き直してください。
 
 ## 元レシピ
 - レシピ名: {recipe.get('title_ja', '')}
 - {servings}人前
 - 元の材料: {', '.join(recipe.get('ingredients_ja', []))}
-- 元の手順（概要）: {' / '.join((recipe.get('steps_ja') or [])[:4])}
+- 元の手順（全{len(recipe.get('steps_ja') or [])}ステップ）:
+{steps_all}
 
 ## 適用する変更
 {chr(10).join(changes)}
+
+## ルール
+- 変更に関係しない手順は、元の文面をそのまま維持すること（要約・省略・言い換えをしない）
+- steps_ja は元レシピと同じ範囲を最初から最後まで完全に出力すること
 
 ## 出力形式（JSON）
 ```json
@@ -362,7 +371,7 @@ JSON以外は出力しないでください。"""
     try:
         message = anthropic_client.messages.create(
             model=MODEL,
-            max_tokens=2000,
+            max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = message.content[0].text.strip()
@@ -392,18 +401,25 @@ def rewrite_from_chat():
         for m in chat_history
     ])
 
+    steps_all = "\n".join(
+        f"{i+1}. {st}" for i, st in enumerate(recipe.get("steps_ja") or [])
+    )
+
     prompt = f"""以下のレシピについて、ユーザーとAIの会話内容を踏まえてレシピを改善・更新してください。
 
 ## 元レシピ
 - レシピ名: {recipe.get('title_ja', '')}
 - {servings}人前
 - 材料: {', '.join(recipe.get('ingredients_ja', []))}
-- 作り方（概要）: {' / '.join((recipe.get('steps_ja') or [])[:4])}
+- 作り方（全{len(recipe.get('steps_ja') or [])}ステップ）:
+{steps_all}
 
 ## 会話内容（これを反映すること）
 {chat_text}
 
 ## ルール
+- 変更に関係しない手順は、元の文面をそのまま維持すること（要約・省略・言い換えをしない）
+- steps_ja は元レシピと同じ範囲を最初から最後まで完全に出力すること
 - 会話で提案・確認された内容（代替食材、アレンジ、調理のコツ等）をレシピに反映する
 - ingredients_ja に列挙した全食材・調味料が steps_ja のいずれかに登場しているか確認し、漏れがあれば手順に組み込む
 - アクが出る食材を使う場合はあく取りの手順を明記する
@@ -422,7 +438,7 @@ JSON以外は出力しないでください。"""
     try:
         message = anthropic_client.messages.create(
             model=MODEL,
-            max_tokens=2000,
+            max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = message.content[0].text.strip()

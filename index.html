@@ -906,11 +906,39 @@
   var LS_HISTORY = 'recipe_history';
   var keptDishes = loadHistory();
 
-  function loadHistory() {
-    try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch(e) { return []; }
+  var HISTORY_WARN_AT = 50;
+
+  function newId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now() + '-' + Math.random().toString(36).slice(2, 10);
   }
+
+  function loadHistory() {
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch(e) { return []; }
+    if (!Array.isArray(list)) return [];
+    // 旧データの補完（_id / _keptAtISO）
+    var changed = false;
+    list.forEach(function(r) {
+      if (!r._id) { r._id = newId(); changed = true; }
+      if (!r._keptAtISO && r._keptAt) {
+        var d = new Date(String(r._keptAt).replace(/-/g, '/'));
+        if (!isNaN(d.getTime())) { r._keptAtISO = d.toISOString(); changed = true; }
+      }
+    });
+    if (changed) { try { localStorage.setItem(LS_HISTORY, JSON.stringify(list)); } catch(e) {} }
+    return list;
+  }
+
   function saveHistoryList() {
-    try { localStorage.setItem(LS_HISTORY, JSON.stringify(keptDishes)); } catch(e) {}
+    try {
+      localStorage.setItem(LS_HISTORY, JSON.stringify(keptDishes));
+      return true;
+    } catch(e) {
+      console.error('[RecipeApp] history save failed:', e);
+      showToast('⚠ 履歴を保存できませんでした（保存容量の上限に達した可能性があります）');
+      return false;
+    }
   }
 
   function renderKeptTabs() {
@@ -932,13 +960,27 @@
     var r = recipeData[idx];
     if (!r) return;
     var entry = JSON.parse(JSON.stringify(r));
-    entry._id = Date.now() + '-' + idx;
-    entry._keptAt = new Date().toLocaleString('ja-JP');
+    var now = new Date();
+    entry._id        = newId();
+    entry._keptAt    = now.toLocaleString('ja-JP');
+    entry._keptAtISO = now.toISOString();
+    // 提案時の条件も保存（後から絞り込み・再提案に使う）
+    entry._context = {
+      ingredients: lastIngredients.slice(),
+      mood: lastMood,
+      servings: lastServings,
+      max_time: lastMaxTime,
+      drink: lastDrink
+    };
     keptDishes.push(entry);
-    saveHistoryList();
+    if (!saveHistoryList()) { keptDishes.pop(); return; }
     renderKeptTabs();
-    showToast('✅ 「' + r.title_ja + '」を決定！次の献立を探せます');
-    resetAll();
+    if (keptDishes.length >= HISTORY_WARN_AT) {
+      showToast('⚠ 履歴が' + keptDishes.length + '件です。古いものを整理してください');
+    } else {
+      showToast('✅ 「' + r.title_ja + '」を決定！食材はそのまま次の献立を探せます');
+    }
+    softReset();
   }
 
   function openKeptModal(id) {
@@ -954,9 +996,13 @@
     if (e.target === document.getElementById('kept-modal')) closeKeptModal();
   }
   function removeKeptDish(id) {
+    var r = keptDishes.find(function(x){ return String(x._id) === String(id); });
+    if (!r) return;
+    if (!window.confirm('「' + r.title_ja + '」を履歴から削除しますか？')) return;
     keptDishes = keptDishes.filter(function(x){ return String(x._id) !== String(id); });
     saveHistoryList();
     renderKeptTabs();
+    closeKeptModal();
   }
 
   function renderStaticRecipeCard(r) {
@@ -985,8 +1031,7 @@
   }
 
   // ---- Restore previous session ----
-  renderKeptTabs();
-  restoreState();
+  // ※ 変数の初期化順の都合上、実際の復元呼び出しはスクリプト末尾で行う
 
   // ---- Tag input ----
   var tags = [];
@@ -1029,7 +1074,7 @@
     tags.forEach(function(t) {
       var el = document.createElement('div');
       el.className = 'tag';
-      el.innerHTML = t + '<span class="tag-del" onclick="removeTag(\'' + t.replace(/'/g,"\\'") + '\')">✕</span>';
+      el.innerHTML = esc(t) + '<span class="tag-del" onclick="removeTag(\'' + t.replace(/'/g,"\\'").replace(/"/g,'&quot;') + '\')">✕</span>';
       wrap.insertBefore(el, input);
     });
   }
@@ -1165,12 +1210,21 @@
     if (data.generated_at) lastGenAt = data.generated_at;
     if (data.candidate_count) lastCandCount = data.candidate_count;
     // Only reset chat/subs on fresh results
-    if (data._fresh !== false) { chatHistories = {}; selectedSubs = {}; recipeSubsMap = []; }
-    // Clear running timers before re-render
+    if (data._fresh !== false) {
+      // 新しい提案のときだけ全状態をリセット
+      chatHistories = {}; selectedSubs = {}; recipeSubsMap = [];
+      selectedAdditions = {}; chatOpen = {}; chatDrafts = {}; chatAppliedCount = {};
+      accState = {};
+      Object.keys(activeTimers).forEach(function(id) {
+        if (activeTimers[id] && activeTimers[id].interval) clearInterval(activeTimers[id].interval);
+      });
+      activeTimers = {};
+    }
+    // 再描画では interval を止めるだけ。タイマーの状態（終了時刻）は保持する
     Object.keys(activeTimers).forEach(function(id) {
       if (activeTimers[id] && activeTimers[id].interval) clearInterval(activeTimers[id].interval);
+      if (activeTimers[id]) activeTimers[id].interval = null;
     });
-    activeTimers = {};
     var el = document.getElementById('results');
 
     var diffClass = function(d) {
@@ -1241,10 +1295,11 @@
       }).join('');
 
       var additionsHtml = (r.suggested_additions && r.suggested_additions.length)
-        ? '<details class="acc"><summary>➕ 追加するともっと美味しくなる食材<span class="arrow">▾</span></summary>'
+        ? '<details class="acc" data-acc="' + i + ':add"><summary>➕ 追加するともっと美味しくなる食材<span class="arrow">▾</span></summary>'
           + '<div class="d-body" style="display:flex;flex-wrap:wrap;gap:8px">'
           + r.suggested_additions.map(function(a) {
-              return '<button class="chip-add" onclick="toggleAddition(' + i + ',\'' + esc(a.name_ja).replace(/'/g,"\\'") + '\',this)" '
+              var addSel = (selectedAdditions[i] || []).indexOf(a.name_ja) !== -1;
+              return '<button class="chip-add' + (addSel ? ' chip-add--selected' : '') + '" onclick="toggleAddition(' + i + ',\'' + esc(a.name_ja).replace(/'/g,"\\'") + '\',this)" '
                 + 'title="' + esc(a.reason) + '">'
                 + '＋ ' + esc(a.name_ja)
                 + '<span class="chip-add-reason">' + esc(a.reason) + '</span>'
@@ -1254,7 +1309,7 @@
         : '';
 
       var tipsHtml = (r.tips && r.tips.length)
-        ? '<details class="acc"><summary>✦ コツ・ポイント<span class="arrow">▾</span></summary>'
+        ? '<details class="acc" data-acc="' + i + ':tips"><summary>✦ コツ・ポイント<span class="arrow">▾</span></summary>'
           + '<div class="d-body"><ul style="list-style:none;display:flex;flex-direction:column;gap:6px">'
           + r.tips.map(function(t){ return '<li style="font-size:.84rem;display:flex;gap:8px;line-height:1.5"><span style="color:var(--gold);flex-shrink:0">✦</span><span>' + esc(t) + '</span></li>'; }).join('')
           + '</ul></div></details>'
@@ -1283,8 +1338,8 @@
         + '</div>'
         + '<div class="recipe-body">'
         + (r.reason ? '<div class="reason-box">' + esc(r.reason) + '</div>' : '')
-        + (ings ? '<details class="acc" open><summary>🥕 材料（' + lastServings + '人前）<span class="arrow">▾</span></summary><div class="d-body ingredients-grid">' + ings + '</div></details>' : '')
-        + (steps ? '<details class="acc" open><summary>👨‍🍳 作り方<span class="arrow">▾</span></summary><div class="d-body"><ul class="steps-list">' + steps + '</ul></div></details>' : '')
+        + (ings ? '<details class="acc" data-acc="' + i + ':ing" open><summary>🥕 材料（' + lastServings + '人前）<span class="arrow">▾</span></summary><div class="d-body ingredients-grid">' + ings + '</div></details>' : '')
+        + (steps ? '<details class="acc" data-acc="' + i + ':steps" open><summary>👨‍🍳 作り方<span class="arrow">▾</span></summary><div class="d-body"><ul class="steps-list">' + steps + '</ul></div></details>' : '')
         + '<div id="rewrite-bar-' + i + '" class="rewrite-bar-wrap" style="display:' + (hasSubsOrAdds ? 'block' : 'none') + '">'
         + '<button class="btn-rewrite" onclick="applyRewrite(' + i + ')">✨ この変更でレシピを更新</button>'
         + '</div>'
@@ -1312,9 +1367,101 @@
         + '</div>';
     }).join('');
 
+    snapshotAccStates();
+    snapshotChatDrafts();
     el.innerHTML = meta + summaryHtml + cards;
+    restoreAccStates();
+    restoreChats();
+    restoreTimers();
     saveState();
     setupCardObserver();
+  }
+
+  // ---- 再描画をまたいで状態を保持するためのヘルパー ----
+  var accState         = {};  // {"0:ing": true, ...} アコーディオン開閉
+  var chatOpen         = {};  // {recipeIdx: bool} チャット欄の開閉
+  var chatDrafts       = {};  // {recipeIdx: 入力途中のテキスト}
+  var chatAppliedCount = {};  // {recipeIdx: レシピに反映済みのメッセージ数}
+
+  function snapshotAccStates() {
+    document.querySelectorAll('#results details[data-acc]').forEach(function(d) {
+      accState[d.getAttribute('data-acc')] = d.open;
+    });
+  }
+
+  function restoreAccStates() {
+    document.querySelectorAll('#results details[data-acc]').forEach(function(d) {
+      var k = d.getAttribute('data-acc');
+      if (Object.prototype.hasOwnProperty.call(accState, k)) d.open = accState[k];
+    });
+  }
+
+  function snapshotChatDrafts() {
+    for (var i = 0; i < 20; i++) {
+      var el = document.getElementById('chat-input-' + i);
+      if (el) chatDrafts[i] = el.value;
+    }
+  }
+
+  function appendDivider(idx) {
+    var msgs = document.getElementById('chat-msgs-' + idx);
+    if (!msgs) return;
+    var el = document.createElement('div');
+    el.style.cssText = 'text-align:center;font-size:.7rem;opacity:.55;margin:10px 0';
+    el.textContent = '— ここまでレシピに反映済み —';
+    msgs.appendChild(el);
+  }
+
+  // チャットログ・入力途中テキスト・開閉状態を再描画後に復元する
+  function restoreChats() {
+    (recipeData || []).forEach(function(_, i) {
+      var hist = chatHistories[i] || [];
+      var msgs = document.getElementById('chat-msgs-' + i);
+      if (msgs) {
+        msgs.innerHTML = '';
+        hist.forEach(function(m, mi) {
+          appendMsg(i, m.role === 'user' ? 'user' : 'ai', m.content);
+          if ((chatAppliedCount[i] || 0) === mi + 1) appendDivider(i);
+        });
+      }
+      var input = document.getElementById('chat-input-' + i);
+      if (input && chatDrafts[i]) input.value = chatDrafts[i];
+      if (hist.length && chatOpen[i] === undefined) chatOpen[i] = true;
+      var body = document.getElementById('chat-body-' + i);
+      if (body && chatOpen[i]) body.classList.add('open');
+      var bar = document.getElementById('chat-rewrite-bar-' + i);
+      if (bar) bar.style.display = (hist.length > (chatAppliedCount[i] || 0)) ? 'block' : 'none';
+    });
+  }
+
+  // 走行中タイマーを再描画後に復元する（終了時刻ベースなのでズレない）
+  function remainingOf(st) {
+    if (!st) return 0;
+    if (st.paused || !st.endAt) return Math.max(0, st.remaining || 0);
+    return Math.max(0, Math.round((st.endAt - Date.now()) / 1000));
+  }
+
+  function restoreTimers() {
+    Object.keys(activeTimers).forEach(function(tid) {
+      var st = activeTimers[tid];
+      var dispEl = document.getElementById('disp-' + tid);
+      var btnEl  = document.getElementById('btn-' + tid);
+      if (!dispEl || !btnEl) {
+        // 対応するステップが消えた（レシピ更新など）→ 破棄
+        if (st && st.interval) clearInterval(st.interval);
+        delete activeTimers[tid];
+        return;
+      }
+      if (st.done) {
+        dispEl.textContent = '✅ 完了';
+        dispEl.className = 'timer-display timer-done';
+        btnEl.style.display = 'none';
+        return;
+      }
+      dispEl.textContent = fmtCountdown(remainingOf(st));
+      btnEl.textContent = st.paused ? '▶ 再開' : '⏸';
+      if (!st.paused && !st.interval) runTimer(tid);
+    });
   }
 
   // ---- Summary <-> detail card sync ----
@@ -1357,23 +1504,35 @@
   }
 
   // ---- State persistence ----
-  function resetAll() {
-    try { localStorage.removeItem('recipe_state'); } catch(e) {}
-    tags = []; lastIngredients = []; lastMood = ''; lastServings = 2;
-    lastMaxTime = ''; lastDrink = ''; shownTitles = [];
-    recipeData = []; chatHistories = {}; selectedSubs = {}; recipeSubsMap = [];
+  // 提案結果と各レシピの状態だけをクリアし、入力条件（食材・人数・気分など）は残す
+  function softReset() {
+    shownTitles = [];
+    recipeData = []; recipeSubsMap = [];
+    chatHistories = {}; chatOpen = {}; chatDrafts = {}; chatAppliedCount = {};
+    selectedSubs = {}; selectedAdditions = {}; accState = {};
+    Object.keys(activeTimers).forEach(function(id) {
+      if (activeTimers[id] && activeTimers[id].interval) clearInterval(activeTimers[id].interval);
+    });
+    activeTimers = {};
     if (cardObserver) { cardObserver.disconnect(); cardObserver = null; }
+    document.getElementById('results').innerHTML = '';
+    hideError();
+    saveState();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // 入力条件も含めて全消去（現状は未使用だが互換のため残す）
+  function resetAll() {
+    tags = []; lastIngredients = []; lastMood = ''; lastServings = 2;
+    lastMaxTime = ''; lastDrink = '';
     document.getElementById('mood').value = '';
     document.getElementById('servings').value = '2';
     document.getElementById('max-time').value = '';
     document.getElementById('drink').value = '';
-    document.getElementById('results').innerHTML = '';
-    hideError();
-    // Clear tag chips
-    var wrap = document.getElementById('tag-wrap');
-    var input = document.getElementById('ingredient-input');
-    Array.from(wrap.querySelectorAll('.tag')).forEach(function(el){ el.remove(); });
-    input.value = '';
+    renderTags();
+    document.getElementById('ingredient-input').value = '';
+    try { localStorage.removeItem('recipe_state'); } catch(e) {}
+    softReset();
   }
 
   function saveState() {
@@ -1396,36 +1555,34 @@
     try {
       var raw = localStorage.getItem('recipe_state');
       if (!raw) return;
-      var s = JSON.parse(raw);
-      if (!s.recipes || !s.recipes.length) return;
+      var st = JSON.parse(raw);
 
-      // Restore form
-      lastIngredients = s.tags || [];
+      // 入力条件は提案結果の有無に関わらず復元する
+      lastIngredients = st.tags || [];
       tags = lastIngredients.slice();
-      lastMood = s.mood || '';
-      lastServings = s.servings || 2;
-      lastMaxTime = s.max_time || '';
-      lastDrink = s.drink || '';
-      shownTitles = s.shownTitles || [];
+      lastMood = st.mood || '';
+      lastServings = st.servings || 2;
+      lastMaxTime = st.max_time || '';
+      lastDrink = st.drink || '';
+      shownTitles = st.shownTitles || [];
 
       document.getElementById('mood').value = lastMood;
       document.getElementById('servings').value = lastServings;
       document.getElementById('max-time').value = lastMaxTime;
       document.getElementById('drink').value = lastDrink;
+      renderTags();
 
-      // Restore tag chips
-      var wrap = document.getElementById('tag-wrap');
-      var input = document.getElementById('ingredient-input');
-      tags.forEach(function(t) {
-        var el = document.createElement('span');
-        el.className = 'tag';
-        el.innerHTML = t + '<span class="tag-del" onclick="removeTag(\'' + t.replace(/'/g,"\\'") + '\')">✕</span>';
-        wrap.insertBefore(el, input);
-      });
-
-      // Restore recipes
-      renderResults({ recipes: s.recipes, generated_at: s.generated_at, candidate_count: s.candidate_count, _fresh: false });
-    } catch(e) {}
+      if (st.recipes && st.recipes.length) {
+        renderResults({
+          recipes: st.recipes,
+          generated_at: st.generated_at,
+          candidate_count: st.candidate_count,
+          _fresh: false
+        });
+      }
+    } catch(e) {
+      console.error('[RecipeApp] restore failed:', e);
+    }
   }
 
   // ---- Substitution modal ----
@@ -1519,7 +1676,7 @@
     })
     .then(function(r){ return r.json(); })
     .then(function(data) {
-      if (data.error) { alert('エラー: ' + data.error); return; }
+      if (data.error) { showToast('エラー: ' + data.error); return; }
       var u = data.updated;
       if (u.ingredients_ja) recipeData[idx].ingredients_ja = u.ingredients_ja;
       if (u.steps_ja)       recipeData[idx].steps_ja       = u.steps_ja;
@@ -1529,7 +1686,7 @@
       selectedAdditions[idx] = [];
       renderResults({recipes: recipeData, generated_at: lastGenAt, candidate_count: lastCandCount, _fresh: false});
     })
-    .catch(function(e) { alert('通信エラー: ' + e.message); })
+    .catch(function(e) { showToast('通信エラー: ' + e.message); })
     .finally(function() {
       if (btn) { btn.disabled = false; btn.textContent = '✨ この変更でレシピを更新'; }
     });
@@ -1577,6 +1734,7 @@
   function toggleChat(idx) {
     var body = document.getElementById('chat-body-' + idx);
     body.classList.toggle('open');
+    chatOpen[idx] = body.classList.contains('open');
   }
 
   function sendChat(idx) {
@@ -1613,6 +1771,7 @@
       chatHistories[idx].push({role: 'user', content: msg});
       chatHistories[idx].push({role: 'assistant', content: data.reply});
       // Show "apply chat to recipe" button after first AI reply
+      chatOpen[idx] = true;
       var chatRewriteBar = document.getElementById('chat-rewrite-bar-' + idx);
       if (chatRewriteBar) chatRewriteBar.style.display = 'block';
     })
@@ -1625,7 +1784,10 @@
 
   function applyRewriteFromChat(idx) {
     var history = chatHistories[idx] || [];
-    if (!history.length) return;
+    var applied = chatAppliedCount[idx] || 0;
+    // すでに反映済みの会話を再適用しないよう、未反映分だけを送る
+    var pending = history.slice(applied);
+    if (!pending.length) { showToast('反映できる新しい会話がありません'); return; }
     var recipe = recipeData[idx];
 
     var bar = document.getElementById('chat-rewrite-bar-' + idx);
@@ -1637,7 +1799,7 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         recipe: recipe,
-        chat_history: history,
+        chat_history: pending,
         servings: lastServings,
       })
     })
@@ -1648,9 +1810,10 @@
       if (u.ingredients_ja) recipeData[idx].ingredients_ja = u.ingredients_ja;
       if (u.steps_ja)       recipeData[idx].steps_ja       = u.steps_ja;
       if (u.tips)           recipeData[idx].tips           = u.tips;
-      chatHistories[idx] = [];
+      // 会話は残したまま「ここまで反映済み」のマーカーだけ進める
+      chatAppliedCount[idx] = chatHistories[idx].length;
       renderResults({recipes: recipeData, generated_at: lastGenAt, candidate_count: lastCandCount, _fresh: false});
-      showToast('✨ レシピを更新しました');
+      showToast('✨ レシピを更新しました（このまま相談を続けられます）');
     })
     .catch(function(e) { showToast('通信エラー: ' + e.message); })
     .finally(function() {
@@ -1694,24 +1857,40 @@
     return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  // 残り秒数のカウントではなく「終了時刻」を持つ。
+  // これによりバックグラウンドに回ってもズレず、再描画をまたいでも継続する。
   function toggleTimer(tid, totalSecs) {
     var dispEl = document.getElementById('disp-' + tid);
     var btnEl  = document.getElementById('btn-' + tid);
     if (!dispEl || !btnEl) return;
-    if (activeTimers[tid]) {
-      if (activeTimers[tid].paused) {
-        activeTimers[tid].paused = false;
-        runTimer(tid);
+    var st = activeTimers[tid];
+    if (st && !st.done) {
+      if (st.paused) {
+        st.paused = false;
+        st.endAt = Date.now() + (st.remaining || 0) * 1000;
         btnEl.textContent = '⏸';
+        runTimer(tid);
       } else {
-        clearInterval(activeTimers[tid].interval);
-        activeTimers[tid].paused = true;
+        if (st.interval) clearInterval(st.interval);
+        st.interval = null;
+        st.remaining = remainingOf(st);
+        st.paused = true;
+        st.endAt = null;
         btnEl.textContent = '▶ 再開';
+        dispEl.textContent = fmtCountdown(st.remaining);
       }
     } else {
-      activeTimers[tid] = { remaining: totalSecs, paused: false, interval: null };
+      activeTimers[tid] = {
+        endAt: Date.now() + totalSecs * 1000,
+        remaining: totalSecs,
+        paused: false,
+        done: false,
+        interval: null
+      };
       dispEl.textContent = fmtCountdown(totalSecs);
+      dispEl.className = 'timer-display';
       btnEl.textContent = '⏸';
+      btnEl.style.display = '';
       runTimer(tid);
     }
   }
@@ -1719,22 +1898,27 @@
   function runTimer(tid) {
     var state = activeTimers[tid];
     if (!state) return;
+    if (state.interval) clearInterval(state.interval);
     state.interval = setInterval(function() {
       var dispEl = document.getElementById('disp-' + tid);
       var btnEl  = document.getElementById('btn-' + tid);
-      if (!dispEl) { clearInterval(state.interval); return; }
-      state.remaining--;
-      if (state.remaining <= 0) {
+      // 再描画の最中は要素が無い場合がある。止めずに次のtickで復帰させる
+      if (!dispEl) return;
+      var rest = remainingOf(state);
+      if (rest <= 0) {
         clearInterval(state.interval);
-        delete activeTimers[tid];
+        state.interval = null;
+        state.done = true;
+        state.remaining = 0;
         dispEl.textContent = '✅ 完了';
         dispEl.className = 'timer-display timer-done';
         if (btnEl) btnEl.style.display = 'none';
         beep();
       } else {
-        dispEl.textContent = fmtCountdown(state.remaining);
+        state.remaining = rest;
+        dispEl.textContent = fmtCountdown(rest);
       }
-    }, 1000);
+    }, 500);
   }
 
   function beep() {
@@ -1823,6 +2007,15 @@
       .replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;');
   }
+
+  // ---- 初期化（全変数の初期化が終わった後に実行する必要がある） ----
+  renderKeptTabs();
+  restoreState();
+
+  // 画面復帰時にタイマー表示を即座に補正する
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) restoreTimers();
+  });
 </script>
 </body>
 </html>

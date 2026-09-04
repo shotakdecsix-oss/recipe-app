@@ -1,0 +1,15 @@
+{
+  "name": "冷蔵庫レシピ",
+  "short_name": "冷蔵庫レシピ",
+  "description": "手持ちの食材からAIがレシピとお酒のペアリングを提案します",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -7,5 +7,11 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
+      # 料理のイメージ写真（Pexels）。未設定でもアプリは動く（写真が出ないだけ）
+      - key: PEXELS_API_KEY
+        sync: false
       - key: MODEL
         value: claude-haiku-4-5
+      # 「じっくり（高品質）」を選んだときに使うモデル
+      - key: QUALITY_MODEL
+        value: claude-sonnet-4-5
